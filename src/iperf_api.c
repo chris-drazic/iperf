@@ -5337,7 +5337,14 @@ iperf_printf(struct iperf_test *test, const char* format, ...)
             }
             r += r0;
         }
-	fprintf(test->outfile, "%s", linebuffer);
+	r0 = fprintf(test->outfile, "%s", linebuffer);
+    if (r0 < 0) {
+        if (pthread_mutex_unlock(&(test->print_mutex)) != 0) {
+            perror("iperf_print: pthread_mutex_unlock");
+        }
+        /* If printing output fails, go ahead and exit, probably broken pipe */
+        iperf_errexit(test, "print to outfile failed: %s\n", strerror(errno));
+    }
 
 	if (test->role == 's' && iperf_get_test_get_server_output(test)) {
 	    struct iperf_textline *l = (struct iperf_textline *) malloc(sizeof(struct iperf_textline));
@@ -5367,6 +5374,15 @@ iflush(struct iperf_test *test)
     }
 
     rc2 = fflush(test->outfile);
+    
+    if (rc2 < 0) {
+        rc = pthread_mutex_unlock(&(test->print_mutex));
+        if (rc != 0) {
+            errno = rc;
+            perror("iflush: pthread_mutex_unlock");
+        }
+        iperf_errexit(test, "fflush on outfile failed: %s\n", strerror(errno));
+    }
 
     rc = pthread_mutex_unlock(&(test->print_mutex));
     if (rc != 0) {

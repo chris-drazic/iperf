@@ -134,7 +134,9 @@ iperf_server_listen(struct iperf_test *test)
             test->server_test_number +=1;
         if (test->debug || test->server_last_run_rc != 2) {
 	    iperf_printf(test, "-----------------------------------------------------------\n");
-	    iperf_printf(test, "Server listening on %d (test #%d)\n", test->server_port, test->server_test_number);
+	    iperf_printf(test, "Server listening on %s %s %d\n",
+                     test->bind_dev ? test->bind_dev : "",
+                     test->bind_address ? test->bind_address : "", test->server_port);
 	    iperf_printf(test, "-----------------------------------------------------------\n");
 	    if (test->forceflush)
 	        iflush(test);

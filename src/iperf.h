@@ -174,6 +174,7 @@ struct iperf_settings
     iperf_size_t bytes;             /* number of bytes to send */
     iperf_size_t blocks;            /* number of blocks (packets) to send */
     char      unit_format;          /* -f */
+    int       unit_precision;        /* --precision */
     int       num_ostreams;         /* SCTP initmsg settings */
     int       dont_fragment;        /* Whether to set IP flag Do-Not_Fragment */
 #if defined(HAVE_SSL)

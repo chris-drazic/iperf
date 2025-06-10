@@ -152,6 +152,11 @@ run(struct iperf_test *test)
     /* Ignore SIGPIPE to simplify error handling */
     signal(SIGPIPE, SIG_IGN);
 
+    if (iperf_create_pidfile(test) < 0) {
+        i_errno = IEPIDFILE;
+        iperf_errexit(test, "error - %s", iperf_strerror(i_errno));
+    }
+
     switch (test->role) {
         case 's':
 	    if (test->daemon) {
@@ -161,10 +166,6 @@ run(struct iperf_test *test)
 		    i_errno = IEDAEMON;
 		    iperf_errexit(test, "error - %s", iperf_strerror(i_errno));
 		}
-	    }
-	    if (iperf_create_pidfile(test) < 0) {
-		i_errno = IEPIDFILE;
-		iperf_errexit(test, "error - %s", iperf_strerror(i_errno));
 	    }
             for (;;) {
 		int rc;
@@ -191,7 +192,6 @@ run(struct iperf_test *test)
 		    break;
 		}
             }
-	    iperf_delete_pidfile(test);
             break;
 	case 'c':
 	    if (iperf_create_pidfile(test) < 0) {
@@ -206,6 +206,8 @@ run(struct iperf_test *test)
             usage();
             break;
     }
+
+    iperf_delete_pidfile(test);
 
     iperf_catch_sigend(SIG_DFL);
     signal(SIGPIPE, SIG_DFL);

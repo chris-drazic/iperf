@@ -303,7 +303,7 @@ netdial(int domain, int proto, const char *local, const char *bind_dev, int loca
 /***************************************************************/
 
 int
-netannounce(int domain, int proto, const char *local, const char *bind_dev, int port)
+netannounce(int domain, int proto, const char *local, const char *bind_dev, int port, struct iperf_test *test)
 {
     struct addrinfo hints, *res;
     char portstr[6];
@@ -335,8 +335,14 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
         return -1;
 
     s = socket(res->ai_family, proto, 0);
+
+    if (test->debug) {
+        fprintf(stderr, "netannounce, domain: %d  proto: %d  local: %s  bind-dev: %s port: %d fd: %d\n",
+                domain, proto, local, bind_dev, port, s);
+    }
+
     if (s < 0) {
-	freeaddrinfo(res);
+	    freeaddrinfo(res);
         return -1;
     }
 

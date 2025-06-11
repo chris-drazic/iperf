@@ -208,7 +208,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 #endif // HAVE_SO_BINDTODEVICE
         {
             saved_errno = errno;
-            close(s);
+            closesocket(s);
             freeaddrinfo(local_res);
             freeaddrinfo(server_res);
             errno = saved_errno;
@@ -226,7 +226,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 
         if (bind(s, (struct sockaddr *) local_res->ai_addr, local_res->ai_addrlen) < 0) {
 	    saved_errno = errno;
-	    close(s);
+	    closesocket(s);
 	    freeaddrinfo(local_res);
 	    freeaddrinfo(server_res);
 	    errno = saved_errno;
@@ -257,7 +257,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 	}
 	/* Unknown protocol */
 	else {
-	    close(s);
+	    closesocket(s);
 	    freeaddrinfo(server_res);
 	    errno = EAFNOSUPPORT;
             return -1;
@@ -265,7 +265,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 
         if (bind(s, (struct sockaddr *) &lcl, addrlen) < 0) {
 	    saved_errno = errno;
-	    close(s);
+	    closesocket(s);
 	    freeaddrinfo(server_res);
 	    errno = saved_errno;
             return -1;
@@ -290,7 +290,7 @@ netdial(int domain, int proto, const char *local, const char *bind_dev, int loca
 
     if (timeout_connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen, timeout) < 0 && errno != EINPROGRESS) {
 	saved_errno = errno;
-	close(s);
+	closesocket(s);
 	freeaddrinfo(server_res);
 	errno = saved_errno;
         return -1;
@@ -347,7 +347,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
 #endif // HAVE_SO_BINDTODEVICE
         {
             saved_errno = errno;
-            close(s);
+            closesocket(s);
             freeaddrinfo(res);
             errno = saved_errno;
             return -1;
@@ -358,7 +358,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
 		   (char *) &opt, sizeof(opt)) < 0) {
 	saved_errno = errno;
-	close(s);
+	closesocket(s);
 	freeaddrinfo(res);
 	errno = saved_errno;
 	return -1;
@@ -380,7 +380,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
 	if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
 		       (char *) &opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
-	    close(s);
+	    closesocket(s);
 	    freeaddrinfo(res);
 	    errno = saved_errno;
 	    return -1;
@@ -390,7 +390,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
 
     if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
         saved_errno = errno;
-        close(s);
+        closesocket(s);
 	freeaddrinfo(res);
         errno = saved_errno;
         return -1;
@@ -401,7 +401,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     if (proto == SOCK_STREAM) {
         if (listen(s, INT_MAX) < 0) {
 	    saved_errno = errno;
-	    close(s);
+	    closesocket(s);
 	    errno = saved_errno;
             return -1;
         }
@@ -459,17 +459,26 @@ Nrecv(int fd, char *buf, size_t count, int prot, int sock_opt)
     }
 
     while (nleft > 0) {
-        if (sock_opt)
-            r = recv(fd, buf, nleft, sock_opt);
-        else
+        errno = 0;
+#ifndef __WIN32__
             r = read(fd, buf, nleft);
-
+#else
+            r = recv(fd, buf, nleft, 0);
+#endif
         if (r < 0) {
+#ifndef __WIN32__
             /* XXX EWOULDBLOCK can't happen without non-blocking sockets */
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+#else
+            if (WSAGetLastError() == WSAEWOULDBLOCK)
+#endif      
+            {
                 break;
-            else
+            }
+            else {
+                fprintf(stderr, "Error in Nread (%s)  fd: %d\n", STRERROR, fd);
                 return NET_HARDERROR;
+            }
         } else if (r == 0)
             break;
 
@@ -564,7 +573,12 @@ Nwrite(int fd, const char *buf, size_t count, int prot)
     register size_t nleft = count;
 
     while (nleft > 0) {
+        errno = 0;
+#ifndef __WIN32__
 	r = write(fd, buf, nleft);
+#else
+        r = send(fd, buf, nleft, 0);
+#endif
 	if (r < 0) {
 	    switch (errno) {
 		case EINTR:
@@ -581,10 +595,19 @@ Nwrite(int fd, const char *buf, size_t count, int prot)
                 return NET_SOFTERROR;
 
                 default:
-		return NET_HARDERROR;
+#ifndef __WIN32__
+                if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+#else
+                if (WSAGetLastError() == WSAEWOULDBLOCK)
+                    return count - nleft;
+#endif
+                return NET_HARDERROR;
 	    }
 	} else if (r == 0)
-	    return NET_SOFTERROR;
+        if ((count - nleft) == 0) 
+            return NET_SOFTERROR;
+        else
+            return (count - nleft); /* already wrote some */
 	nleft -= r;
 	buf += r;
     }

@@ -193,13 +193,15 @@ iperf_accept(struct iperf_test *test)
         if (iperf_set_control_keepalive(test) < 0)
             return -1;
 #endif //HAVE_TCP_KEEPALIVE
-
-        if (Nread(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp) != COOKIE_SIZE) {
+            int rv = Nread(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp);
+        if (rv < 0) {
             /*
              * Note this error covers both the case of a system error
              * or the inability to read the correct amount of data
              * (i.e. timed out).
              */
+            fprintf(stderr, "Accept problem, ctrl-sck: %d  s: %d  listener: %d Nread rv: %d\n",
++                    test->ctrl_sck, s, test->listener, rv);
             i_errno = IERECVCOOKIE;
             goto error_handling;
         }
@@ -224,17 +226,20 @@ iperf_accept(struct iperf_test *test)
          * to the ongoing test, and returning an error will terminate the test.
          */
         if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp) < 0) {
+            i_errno = IESENDMESSAGE;
+            closesocket(s);
             if (test->debug)
                 printf("failed to send ACCESS_DENIED to an unsolicited connection request during active test\n");
+            goto error_handling;
         } else {
             if (test->debug)
                 printf("successfully sent ACCESS_DENIED to an unsolicited connection request during active test\n");
         }
-        close(s);
+        closesocket(s);
     }
     return 0;
     error_handling:
-        close(s);
+        closesocket(s);
         return ret;
 }
 
@@ -277,7 +282,7 @@ iperf_handle_message_server(struct iperf_test *test)
             SLIST_FOREACH(sp, &test->streams, streams) {
                 FD_CLR(sp->socket, &test->read_set);
                 FD_CLR(sp->socket, &test->write_set);
-                close(sp->socket);
+                closesocket(sp->socket);
             }
             test->reporter_callback(test);
             if (iperf_set_send_state(test, EXCHANGE_RESULTS) != 0)
@@ -307,7 +312,7 @@ iperf_handle_message_server(struct iperf_test *test)
             SLIST_FOREACH(sp, &test->streams, streams) {
                 FD_CLR(sp->socket, &test->read_set);
                 FD_CLR(sp->socket, &test->write_set);
-                close(sp->socket);
+                closesocket(sp->socket);
             }
             iperf_set_test_state(test, IPERF_DONE);
             break;
@@ -333,10 +338,10 @@ server_timer_proc(TimerClientData client_data, struct iperf_time *nowP)
     while (!SLIST_EMPTY(&test->streams)) {
         sp = SLIST_FIRST(&test->streams);
         SLIST_REMOVE_HEAD(&test->streams, streams);
-        close(sp->socket);
+        closesocket(sp->socket);
         iperf_free_stream(sp);
     }
-    close(test->ctrl_sck);
+    closesocket(test->ctrl_sck);
     test->ctrl_sck = -1;
 }
 
@@ -495,15 +500,15 @@ cleanup_server(struct iperf_test *test)
 
     /* Close open test sockets */
     if (test->ctrl_sck > -1) {
-	close(test->ctrl_sck);
+	closesocket(test->ctrl_sck);
         test->ctrl_sck = -1;
     }
     if (test->listener > -1) {
-	close(test->listener);
+	closesocket(test->listener);
         test->listener = -1;
     }
     if (test->prot_listener > -1) {     // May remain open if create socket failed
-	close(test->prot_listener);
+	closesocket(test->prot_listener);
         test->prot_listener = -1;
     }
 
@@ -528,6 +533,7 @@ cleanup_server(struct iperf_test *test)
         tmr_cancel(test->timer);
         test->timer = NULL;
     }
+    test->state = IPERF_DONE;
 }
 
 
@@ -778,7 +784,7 @@ iperf_run_server(struct iperf_test *test)
 				}
 				else {
 				    saved_errno = errno;
-				    close(s);
+				    closesocket(s);
 				    cleanup_server(test);
 				    errno = saved_errno;
 				    i_errno = IESETCONGESTION;
@@ -793,7 +799,7 @@ iperf_run_server(struct iperf_test *test)
 			    rc = getsockopt(s, IPPROTO_TCP, TCP_CONGESTION, ca, &len);
                             if (rc < 0 && test->congestion) {
 				saved_errno = errno;
-				close(s);
+				closesocket(s);
 				cleanup_server(test);
 				errno = saved_errno;
 				i_errno = IESETCONGESTION;
@@ -850,12 +856,12 @@ iperf_run_server(struct iperf_test *test)
                 if (rec_streams_accepted == streams_to_rec && send_streams_accepted == streams_to_send) {
                     if (test->protocol->id != Ptcp) {
                         FD_CLR(test->prot_listener, &test->read_set);
-                        close(test->prot_listener);
+                        closesocket(test->prot_listener);
                         test->prot_listener = -1;
                     } else {
                         if (test->no_delay || test->settings->mss || test->settings->socket_bufsize) {
                             FD_CLR(test->listener, &test->read_set);
-                            close(test->listener);
+                            closesocket(test->listener);
 			    test->listener = -1;
                             if ((s = netannounce(test->settings->domain, Ptcp, test->bind_address, test->bind_dev, test->server_port)) < 0) {
 				cleanup_server(test);

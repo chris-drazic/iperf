@@ -320,8 +320,7 @@ iperf_handle_message_client(struct iperf_test *test)
         iperf_printf(test, "Reading new State from the Server - current state is %d-%s\n", test->state, state_to_text(test->state));
     }
 
-    /*!!! Why is this read() and not Nread()? */
-    if ((rval = read(test->ctrl_sck, (char*) &test->state, sizeof(signed char))) <= 0) {
+    if ((rval = Nread(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp, test)) <= 0) {
         if (rval == 0) {
             i_errno = IECTRLCLOSE;
             return -1;
@@ -394,12 +393,12 @@ iperf_handle_message_client(struct iperf_test *test)
             i_errno = IEACCESSDENIED;
             return -1;
         case SERVER_ERROR:
-            if (Nread(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp) < 0) {
+            if (Nread(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test) < 0) {
                 i_errno = IECTRLREAD;
                 return -1;
             }
 	    i_errno = ntohl(err);
-            if (Nread(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp) < 0) {
+            if (Nread(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test) < 0) {
                 i_errno = IECTRLREAD;
                 return -1;
             }
@@ -463,7 +462,7 @@ iperf_connect(struct iperf_test *test)
     }
 #endif /* HAVE_TCP_USER_TIMEOUT */
 
-    if (Nwrite(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp) < 0) {
+    if (Nwrite(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp, test) < 0) {
         i_errno = IESENDCOOKIE;
         return -1;
     }

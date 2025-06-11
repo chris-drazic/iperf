@@ -196,7 +196,7 @@ iperf_accept(struct iperf_test *test)
         if (iperf_set_control_keepalive(test) < 0)
             return -1;
 #endif //HAVE_TCP_KEEPALIVE
-            int rv = Nread(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp);
+            int rv = Nread(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp, test);
         if (rv < 0) {
             /*
              * Note this error covers both the case of a system error
@@ -228,7 +228,7 @@ iperf_accept(struct iperf_test *test)
          * Also, if sending failed, don't return an error, as the request is not related
          * to the ongoing test, and returning an error will terminate the test.
          */
-        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp) < 0) {
+        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test) < 0) {
             i_errno = IESENDMESSAGE;
             closesocket(s);
             if (test->debug)
@@ -259,7 +259,7 @@ iperf_handle_message_server(struct iperf_test *test)
     }
 
     // XXX: Need to rethink how this behaves to fit API
-    if ((rval = Nread(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp)) <= 0) {
+    if ((rval = Nread(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp, test)) <= 0) {
         if (rval == 0) {
             iperf_err(test, "the client has unexpectedly closed the connection");
             i_errno = IECTRLCLOSE;

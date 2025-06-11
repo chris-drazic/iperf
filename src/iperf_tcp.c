@@ -104,7 +104,7 @@ iperf_tcp_send(struct iperf_stream *sp)
     if (sp->test->zerocopy)
 	      r = Nsendfile(sp->buffer_fd, sp->socket, sp->buffer, sp->pending_size);
     else
-	      r = Nwrite(sp->socket, sp->buffer, sp->pending_size, Ptcp);
+	      r = Nwrite(sp->socket, sp->buffer, sp->pending_size, Ptcp, sp->test);
 
     if (r < 0)
         return r;
@@ -156,14 +156,14 @@ iperf_tcp_accept(struct iperf_test * test)
     }
 #endif /* HAVE_SO_MAX_PACING_RATE */
 
-    if (Nread(s, cookie, COOKIE_SIZE, Ptcp) < 0) {
+    if (Nread(s, cookie, COOKIE_SIZE, Ptcp, test) < 0) {
         i_errno = IERECVCOOKIE;
         closesocket(s);
         return -1;
     }
 
     if (strncmp(test->cookie, cookie, COOKIE_SIZE) != 0) {
-        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp) < 0) {
+        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test) < 0) {
             iperf_err(test, "failed to send access denied from busy server to new connecting client, errno = %d\n", errno);
             i_errno = IESENDMESSAGE;
         }
@@ -617,7 +617,7 @@ iperf_tcp_connect(struct iperf_test *test)
     freeaddrinfo(server_res);
 
     /* Send cookie for verification */
-    if (Nwrite(s, test->cookie, COOKIE_SIZE, Ptcp) < 0) {
+    if (Nwrite(s, test->cookie, COOKIE_SIZE, Ptcp, test) < 0) {
 	saved_errno = errno;
 	closesocket(s);
 	errno = saved_errno;

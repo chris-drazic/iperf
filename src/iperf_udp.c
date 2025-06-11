@@ -248,7 +248,7 @@ iperf_udp_send(struct iperf_stream *sp)
 
     }
 
-    r = Nwrite(sp->socket, sp->buffer, size, Pudp);
+    r = Nwrite(sp->socket, sp->buffer, size, Pudp, sp->test);
 
     if (r <= 0) {
         --sp->packet_count;     /* Don't count messages that no data was sent from them.

@@ -317,7 +317,7 @@ iperf_udp_buffercheck(struct iperf_test *test, int s)
 	return -1;
     }
     if (test->debug) {
-	printf("SNDBUF is %u, expecting %u\n", sndbuf_actual, test->settings->socket_bufsize);
+	printf("SNDBUF is %u, expecting %u, fd: %d\n", sndbuf_actual, test->settings->socket_bufsize, s);
     }
     if (test->settings->socket_bufsize && test->settings->socket_bufsize > sndbuf_actual) {
 	i_errno = IESETBUF2;
@@ -339,7 +339,7 @@ iperf_udp_buffercheck(struct iperf_test *test, int s)
 	return -1;
     }
     if (test->debug) {
-	printf("RCVBUF is %u, expecting %u\n", rcvbuf_actual, test->settings->socket_bufsize);
+	printf("RCVBUF is %u, expecting %u fd: %d\n", rcvbuf_actual, test->settings->socket_bufsize, s);
     }
     if (test->settings->socket_bufsize && test->settings->socket_bufsize > rcvbuf_actual) {
 	i_errno = IESETBUF2;
@@ -464,6 +464,7 @@ iperf_udp_accept(struct iperf_test *test)
     test->prot_listener = netannounce(test->settings->domain, Pudp, test->bind_address, test->bind_dev, test->server_port);
     if (test->prot_listener < 0) {
         i_errno = IESTREAMLISTEN;
+        closesocket(s);
         return -1;
     }
 
@@ -478,6 +479,7 @@ iperf_udp_accept(struct iperf_test *test)
 #endif
         {
         i_errno = IESTREAMWRITE;
+        closesocket(s);
         return -1;
     }
 
@@ -525,33 +527,42 @@ iperf_udp_connect(struct iperf_test *test)
     int rc;
     int i, max_len_wait_for_reply;
 
+    if (test->debug) {
+        fprintf(stderr, "udp-connect called\n");
+    }
+
     /* Create and bind our local socket. */
-    if ((s = netdial(test->settings->domain, Pudp, test->bind_address, test->bind_dev, test->bind_port, test->server_hostname, test->server_port, -1)) < 0) {
+    if ((s = netdial(test->settings->domain, Pudp, test->bind_address, test->bind_dev, 
+                     test->bind_port, test->server_hostname, test->server_port, -1, test)) < 0) {
         i_errno = IESTREAMCONNECT;
         return -1;
     }
 
     /* Check and set socket buffer sizes */
     rc = iperf_udp_buffercheck(test, s);
-    if (rc < 0)
-	/* error */
-	return rc;
+    if (rc < 0) {
+        /* error */
+        closesocket(s);
+        return rc;
+    }
     /*
      * If the socket buffer was too small, but it was the default
      * size, then try explicitly setting it to something larger.
      */
     if (rc > 0) {
-	if (test->settings->socket_bufsize == 0) {
-            char str[WARN_STR_LEN];
-	    int bufsize = test->settings->blksize + UDP_BUFFER_EXTRA;
-	    snprintf(str, sizeof(str), "Increasing socket buffer size to %d",
-	             bufsize);
-	    warning(str);
-	    test->settings->socket_bufsize = bufsize;
-	    rc = iperf_udp_buffercheck(test, s);
-	    if (rc < 0)
-		return rc;
-	}
+        if (test->settings->socket_bufsize == 0) {
+                char str[WARN_STR_LEN];
+            int bufsize = test->settings->blksize + UDP_BUFFER_EXTRA;
+            snprintf(str, sizeof(str), "Increasing socket buffer size to %d",
+                    bufsize);
+            warning(str);
+            test->settings->socket_bufsize = bufsize;
+            rc = iperf_udp_buffercheck(test, s);
+            if (rc < 0) {
+                closesocket(s);
+                return rc;
+            }
+        }
     }
 
 #if defined(HAVE_SO_MAX_PACING_RATE)
@@ -594,8 +605,10 @@ iperf_udp_connect(struct iperf_test *test)
      */
     buf = UDP_CONNECT_MSG;
     if (test->debug) {
-        printf("Sending Connect message to Socket %d\n", s);
+        fprintf(stderr, "sending '123456789' to peer to let them know we are here: %s",
+                hexdump((const unsigned char*)(&buf), sizeof(buf), 1, 1));
     }
+    // This sucks:  UDP messages can be lost and will not automatically be retransmitted.
 #ifndef __WIN32__
         if (send(s, (const char*)&buf, sizeof(buf), 0) < 0)
 #else
@@ -604,6 +617,7 @@ iperf_udp_connect(struct iperf_test *test)
         {
         // XXX: Should this be changed to IESTREAMCONNECT?
         i_errno = IESTREAMWRITE;
+        closesocket(s);
         return -1;
     }
 
@@ -617,11 +631,12 @@ iperf_udp_connect(struct iperf_test *test)
     do {
         if ((sz = recv(s, (char*)&buf, sizeof(buf), 0)) < 0) {
             fprintf(stderr, "Failed recv: %s  socket: %d\n", STRERROR, s);
+            closesocket(s);
             i_errno = IESTREAMREAD;
             return -1;
         }
         if (test->debug) {
-            printf("Connect received for Socket %d, sz=%d, buf=%x, i=%d, max_len_wait_for_reply=%d\n", s, sz, buf, i, max_len_wait_for_reply);
+            fprintf(stderr, "Received response from server: %s", hexdump((const unsigned char*)(&buf), sizeof(buf), 1, 1));
         }
         i += sz;
     } while (buf != UDP_CONNECT_REPLY && buf != LEGACY_UDP_CONNECT_REPLY && i < max_len_wait_for_reply);

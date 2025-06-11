@@ -278,7 +278,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 
 /* make connection to server */
 int
-netdial(int domain, int proto, const char *local, const char *bind_dev, int local_port, const char *server, int port, int timeout)
+netdial(int domain, int proto, const char *local, const char *bind_dev, int local_port, const char *server, int port, int timeout, struct iperf_test *test)
 {
     struct addrinfo *server_res = NULL;
     int s, saved_errno;
@@ -489,7 +489,7 @@ Nrecv(int fd, char *buf, size_t count, int prot, struct iperf_test *test)
 
         if (test && test->debug > 1) {
             fprintf(stderr, "Nread:\n");
-            fprintf(stderr, hexdump(oldbuf, count - nleft, 1, 1));
+            fprintf(stderr, hexdump((const unsigned char*)oldbuf, count - nleft, 1, 1));
         }
 
         /*
@@ -580,7 +580,7 @@ Nwrite(int fd, const char *buf, size_t count, int prot, struct iperf_test *test)
 
     if (test && test->debug > 1) {
         fprintf(stderr, "Nwrite:\n");
-        fprintf(stderr, hexdump(buf, count, 1, 1));
+        fprintf(stderr, hexdump((const unsigned char*)buf, count, 1, 1));
     }
 
     while (nleft > 0) {

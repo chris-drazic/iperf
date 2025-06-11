@@ -90,7 +90,7 @@ iperf_sctp_send(struct iperf_stream *sp)
 #if defined(HAVE_SCTP_H)
     int r;
 
-    r = Nwrite(sp->socket, sp->buffer, sp->settings->blksize, Psctp);
+    r = Nwrite(sp->socket, sp->buffer, sp->settings->blksize, Psctp, sp->test);
     if (r < 0)
         return r;
 
@@ -127,14 +127,14 @@ iperf_sctp_accept(struct iperf_test * test)
         return -1;
     }
 
-    if (Nread(s, cookie, COOKIE_SIZE, Psctp) < 0) {
+    if (Nread(s, cookie, COOKIE_SIZE, Psctp, test) < 0) {
         i_errno = IERECVCOOKIE;
         close(s);
         return -1;
     }
 
     if (strncmp(test->cookie, cookie, COOKIE_SIZE) != 0) {
-        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Psctp) < 0) {
+        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Psctp, test) < 0) {
             i_errno = IESENDMESSAGE;
             close(s);
             return -1;
@@ -524,7 +524,7 @@ iperf_sctp_connect(struct iperf_test *test)
     }
 
     /* Send cookie for verification */
-    if (Nwrite(s, test->cookie, COOKIE_SIZE, Psctp) < 0) {
+    if (Nwrite(s, test->cookie, COOKIE_SIZE, Psctp, test) < 0) {
 	saved_errno = errno;
 	close(s);
 	freeaddrinfo(server_res);

@@ -35,14 +35,16 @@
 #include <unistd.h>
 #include <assert.h>
 #include <fcntl.h>
+#ifndef __WIN32__
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/resource.h>
+#endif
 #include <stdint.h>
 #include <sys/time.h>
-#include <sys/resource.h>
 #include <sched.h>
 #include <setjmp.h>
 #include <signal.h>

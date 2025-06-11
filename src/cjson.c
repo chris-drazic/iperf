@@ -485,7 +485,7 @@ static unsigned char* ensure(printbuffer * const p, size_t needed)
         /* overflow of int, use SIZE_MAX if possible */
         if (needed <= SIZE_MAX)
         {
-            newsize = SIZE_MAX;
+            newsize = (size_t)SIZE_MAX;
         }
         else
         {

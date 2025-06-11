@@ -57,6 +57,19 @@ main(int argc, char **argv)
 {
     struct iperf_test *test;
 
+#ifdef __WIN32__
+    WORD wVersionRequested;
+    WSADATA wsaData;
+    int err;
+   
+    wVersionRequested = MAKEWORD( 2, 0 );
+    if ((err = WSAStartup( wVersionRequested, &wsaData )) != 0) {
+       /* Tell the user that we could not find a usable */
+       /* WinSock DLL.                                  */
+       fprintf(stderr, "ERROR:  Could not load Winsock 2.0 DLLs, err: %d\n", err);
+       return err;
+    }
+#endif
     /*
      * Atomics check. We prefer to have atomic types (which is
      * basically on any compiler supporting C11 or better). If we
@@ -110,6 +123,7 @@ main(int argc, char **argv)
 #endif
 
     test = iperf_new_test();
+
     if (!test)
         iperf_errexit(NULL, "create new test error - %s", iperf_strerror(i_errno));
     iperf_defaults(test);	/* sets defaults */
@@ -148,9 +162,10 @@ run(struct iperf_test *test)
     iperf_catch_sigend(sigend_handler);
     if (setjmp(sigend_jmp_buf))
 	iperf_got_sigend(test, signed_sig);
-
+#ifndef __WIN32__
     /* Ignore SIGPIPE to simplify error handling */
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     if (iperf_create_pidfile(test) < 0) {
         i_errno = IEPIDFILE;
@@ -160,12 +175,16 @@ run(struct iperf_test *test)
     switch (test->role) {
         case 's':
 	    if (test->daemon) {
+#ifndef __WIN32__
 		int rc;
 		rc = daemon(1, 0);
 		if (rc < 0) {
 		    i_errno = IEDAEMON;
 		    iperf_errexit(test, "error - %s", iperf_strerror(i_errno));
 		}
+#else       
+            iperf_errexit(test, "daemon mode not supported on windows.");
+#endif
 	    }
             for (;;) {
 		int rc;
@@ -210,7 +229,9 @@ run(struct iperf_test *test)
     iperf_delete_pidfile(test);
 
     iperf_catch_sigend(SIG_DFL);
+#ifndef __WIN32__
     signal(SIGPIPE, SIG_DFL);
+#endif
 
     return 0;
 }

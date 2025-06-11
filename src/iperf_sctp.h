@@ -24,6 +24,8 @@
  * This code is distributed under a BSD style license, see the LICENSE
  * file for complete information.
  */
+#ifndef __WIN32__
+
 #ifndef        IPERF_SCTP_H
 #define        IPERF_SCTP_H
 
@@ -71,4 +73,5 @@ int iperf_sctp_bindx(struct iperf_test *test, int s, int is_server);
 
 int iperf_sctp_get_info(struct iperf_stream *sp, struct iperf_sctp_info *sctp_info);
 
+#endif
 #endif

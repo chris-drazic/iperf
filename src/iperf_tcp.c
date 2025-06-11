@@ -30,12 +30,14 @@
 #include <errno.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#ifndef __WIN32__
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <sys/time.h>
 #include <sys/select.h>
+#endif
+#include <sys/time.h>
 #include <limits.h>
 
 #include "iperf.h"
@@ -111,7 +113,7 @@ iperf_tcp_send(struct iperf_stream *sp)
 
     if (sp->test->debug_level >=  DEBUG_LEVEL_DEBUG)
 	      printf("sent %d bytes of %d, pending %d, total %" PRIu64 "\n",
-	          r, sp->settings->blksize, sp->pending_size, sp->result->bytes_sent);
+	          r, sp->settings->blksize, sp->pending_size, (long long unsigned)sp->result->bytes_sent);
 
     return r;
 }
@@ -234,7 +236,7 @@ iperf_tcp_listen(struct iperf_test *test)
 
         if (test->no_delay) {
             opt = 1;
-            if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
+            if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
 		close(s);
 		freeaddrinfo(res);
@@ -244,6 +246,7 @@ iperf_tcp_listen(struct iperf_test *test)
             }
         }
         // XXX: Setting MSS is very buggy!
+#ifndef __WIN32__
         if ((opt = test->settings->mss)) {
             if (setsockopt(s, IPPROTO_TCP, TCP_MAXSEG, &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
@@ -254,8 +257,9 @@ iperf_tcp_listen(struct iperf_test *test)
                 return -1;
             }
         }
+#endif
         if ((opt = test->settings->socket_bufsize)) {
-            if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, &opt, sizeof(opt)) < 0) {
+            if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char*)&opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
 		close(s);
 		freeaddrinfo(res);
@@ -263,7 +267,7 @@ iperf_tcp_listen(struct iperf_test *test)
                 i_errno = IESETBUF;
                 return -1;
             }
-            if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &opt, sizeof(opt)) < 0) {
+            if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char*)&opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
 		close(s);
 		freeaddrinfo(res);
@@ -281,7 +285,7 @@ iperf_tcp_listen(struct iperf_test *test)
 	}
     }
         opt = 1;
-        if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
             close(s);
 	    freeaddrinfo(res);
@@ -302,7 +306,7 @@ iperf_tcp_listen(struct iperf_test *test)
 	    else
 		opt = 1;
 	    if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
-			   (char *) &opt, sizeof(opt)) < 0) {
+			   (const char *) &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
 		close(s);
 		freeaddrinfo(res);
@@ -335,7 +339,7 @@ iperf_tcp_listen(struct iperf_test *test)
 
     /* Read back and verify the sender socket buffer size */
     optlen = sizeof(sndbuf_actual);
-    if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, &sndbuf_actual, &optlen) < 0) {
+    if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, (char*)&sndbuf_actual, &optlen) < 0) {
 	saved_errno = errno;
 	close(s);
 	errno = saved_errno;
@@ -353,7 +357,7 @@ iperf_tcp_listen(struct iperf_test *test)
 
     /* Read back and verify the receiver socket buffer size */
     optlen = sizeof(rcvbuf_actual);
-    if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, &rcvbuf_actual, &optlen) < 0) {
+    if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&rcvbuf_actual, &optlen) < 0) {
 	saved_errno = errno;
 	close(s);
 	errno = saved_errno;
@@ -410,7 +414,7 @@ iperf_tcp_connect(struct iperf_test *test)
     /* Set socket options */
     if (test->no_delay) {
         opt = 1;
-        if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
+        if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
 	    close(s);
 	    freeaddrinfo(server_res);
@@ -419,6 +423,7 @@ iperf_tcp_connect(struct iperf_test *test)
             return -1;
         }
     }
+#ifndef __WIN32__
     if ((opt = test->settings->mss)) {
         if (setsockopt(s, IPPROTO_TCP, TCP_MAXSEG, &opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
@@ -429,8 +434,9 @@ iperf_tcp_connect(struct iperf_test *test)
             return -1;
         }
     }
+#endif
     if ((opt = test->settings->socket_bufsize)) {
-        if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, &opt, sizeof(opt)) < 0) {
+       if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char*)&opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
 	    close(s);
 	    freeaddrinfo(server_res);
@@ -438,7 +444,7 @@ iperf_tcp_connect(struct iperf_test *test)
             i_errno = IESETBUF;
             return -1;
         }
-        if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &opt, sizeof(opt)) < 0) {
+       if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char*)&opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
 	    close(s);
 	    freeaddrinfo(server_res);
@@ -462,7 +468,7 @@ iperf_tcp_connect(struct iperf_test *test)
 
     /* Read back and verify the sender socket buffer size */
     optlen = sizeof(sndbuf_actual);
-    if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, &sndbuf_actual, &optlen) < 0) {
+    if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, (char*)&sndbuf_actual, &optlen) < 0) {
 	saved_errno = errno;
 	close(s);
 	freeaddrinfo(server_res);
@@ -482,7 +488,7 @@ iperf_tcp_connect(struct iperf_test *test)
 
     /* Read back and verify the receiver socket buffer size */
     optlen = sizeof(rcvbuf_actual);
-    if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, &rcvbuf_actual, &optlen) < 0) {
+    if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, (char*)&rcvbuf_actual, &optlen) < 0) {
 	saved_errno = errno;
 	close(s);
 	freeaddrinfo(server_res);

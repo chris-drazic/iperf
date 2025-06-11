@@ -24,6 +24,8 @@
  * This code is distributed under a BSD style license, see the LICENSE
  * file for complete information.
  */
+#ifndef __WIN32__
+
 #include "iperf_config.h"
 
 #include <stdio.h>
@@ -776,3 +778,4 @@ iperf_sctp_get_info(struct iperf_stream *sp, struct iperf_sctp_info *sctp_info)
     return -1;
 #endif /* HAVE_SCTP_H */
 }
+#endif /* win32 */

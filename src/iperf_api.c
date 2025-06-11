@@ -41,15 +41,9 @@
 #include <unistd.h>
 #include <assert.h>
 #include <fcntl.h>
-#include <sys/socket.h>
 #include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <stdint.h>
 #include <sys/time.h>
-#include <sys/resource.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sched.h>
 #include <setjmp.h>
@@ -4794,21 +4788,21 @@ iperf_init_stream(struct iperf_stream *sp, struct iperf_test *test)
          */
 #if defined(IP_MTU_DISCOVER) /* Linux version of IP_DONTFRAG */
         opt = IP_PMTUDISC_DO;
-        if (setsockopt(sp->socket, IPPROTO_IP, IP_MTU_DISCOVER, &opt, sizeof(opt)) < 0) {
+        if (setsockopt(sp->socket, IPPROTO_IP, IP_MTU_DISCOVER, (const char*)&opt, sizeof(opt)) < 0) {
             i_errno = IESETDONTFRAGMENT;
             return -1;
         }
 #else
 #if defined(IP_DONTFRAG) /* UNIX does IP_DONTFRAG */
         opt = 1;
-        if (setsockopt(sp->socket, IPPROTO_IP, IP_DONTFRAG, &opt, sizeof(opt)) < 0) {
+        if (setsockopt(sp->socket, IPPROTO_IP, IP_DONTFRAG, (const char*)&opt, sizeof(opt)) < 0) {
             i_errno = IESETDONTFRAGMENT;
             return -1;
         }
 #else
 #if defined(IP_DONTFRAGMENT) /* Windows does IP_DONTFRAGMENT */
         opt = 1;
-        if (setsockopt(sp->socket, IPPROTO_IP, IP_DONTFRAGMENT, &opt, sizeof(opt)) < 0) {
+        if (setsockopt(sp->socket, IPPROTO_IP, IP_DONTFRAGMENT, (const char*)&opt, sizeof(opt)) < 0) {
             i_errno = IESETDONTFRAGMENT;
             return -1;
         }
@@ -4936,7 +4930,10 @@ diskfile_recv(struct iperf_stream *sp)
     r = sp->rcv2(sp);
     if (r > 0) {
 	// NOTE: Currently ignoring the return value of writing to disk
-	(void) (write(sp->diskfile_fd, sp->buffer, r) + 1);
+	    (void) (write(sp->diskfile_fd, sp->buffer, r) + 1);
+#ifndef __WIN32__
+        (void) fsync(sp->diskfile_fd);
+#endif
     }
     return r;
 }
@@ -4951,7 +4948,7 @@ iperf_catch_sigend(void (*handler)(int))
 #ifdef SIGTERM
     signal(SIGTERM, handler);
 #endif
-#ifdef SIGHUP
+#if defined(SIGHUP) && !defined(__WIN32__)
     signal(SIGHUP, handler);
 #endif
 }
@@ -5035,6 +5032,7 @@ iperf_create_pidfile(struct iperf_test *test)
 			if (kill(pid, 0) == 0) {
 #endif // _WRS_KERNEL and _WRS_CONFIG_LP64
 #else
+#ifndef __WIN32__
 		    if (kill(pid, 0) == 0) {
 #endif // __vxworks or __VXWORKS__
 			/*
@@ -5046,6 +5044,7 @@ iperf_create_pidfile(struct iperf_test *test)
 			test->pidfile = NULL;
 			iperf_errexit(test, "Another instance of iperf3 appears to be running");
 		    }
+#endif
 		}
 	    }
         (void)close(fd);

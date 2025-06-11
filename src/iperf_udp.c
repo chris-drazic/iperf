@@ -612,48 +612,68 @@ iperf_udp_connect(struct iperf_test *test)
      */
     buf = UDP_CONNECT_MSG;
     if (test->debug) {
-        fprintf(stderr, "sending '123456789' to peer to let them know we are here: %s",
+        fprintf(stderr, "sending '0x39383736' to peer to let them know we are here: %s",
                 hexdump((const unsigned char*)(&buf), sizeof(buf), 1, 1));
     }
-    // This sucks:  UDP messages can be lost and will not automatically be retransmitted.
-#ifndef __WIN32__
+    for (i = 0; i<30; i++) {
+        fd_set read_fds;
+
+        /* UDP messages can be lost and will not automatically be retransmitted.
+         * so we will retry and use select to not block forever.
+         */
+#ifdef __WIN32__
         if (send(s, (const char*)&buf, sizeof(buf), 0) < 0)
 #else
         if (write(s, &buf, sizeof(buf)) < 0)
-#endif
+#endif        
         {
-        // XXX: Should this be changed to IESTREAMCONNECT?
-        i_errno = IESTREAMWRITE;
-        closesocket(s);
-        return -1;
-    }
-
-    /*
-     * Wait until the server replies back to us with the "accept" response.
-     */
-    i = 0;
-    max_len_wait_for_reply = sizeof(buf);
-    if (test->reverse) /* In reverse mode allow few packets to have the "accept" response - to handle out of order packets */
-        max_len_wait_for_reply += MAX_REVERSE_OUT_OF_ORDER_PACKETS * test->settings->blksize;
-    do {
-        if ((sz = recv(s, (char*)&buf, sizeof(buf), 0)) < 0) {
-            fprintf(stderr, "Failed recv: %s  socket: %d\n", STRERROR, s);
+            // XXX: Should this be changed to IESTREAMCONNECT? 
+            i_errno = IESTREAMWRITE;
             closesocket(s);
-            i_errno = IESTREAMREAD;
             return -1;
         }
-        if (test->debug) {
-            fprintf(stderr, "Received response from server: %s", hexdump((const unsigned char*)(&buf), sizeof(buf), 1, 1));
-        }
-        i += sz;
-    } while (buf != UDP_CONNECT_REPLY && buf != LEGACY_UDP_CONNECT_REPLY && i < max_len_wait_for_reply);
 
-    if (buf != UDP_CONNECT_REPLY  && buf != LEGACY_UDP_CONNECT_REPLY) {
-        i_errno = IESTREAMREAD;
-        return -1;
+        if (test->debug) {
+            iperf_err(test, "waiting to receive response from server");
+        }
+
+        /*
+         * Wait until the server replies back to us.
+         */
+        //We are going to use select to wait for the socket to connect
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+
+        FD_ZERO(&read_fds);
+        FD_SET(s, &read_fds);
+
+        int select_ret = select(s + 1, &read_fds, NULL, NULL, &tv);
+        if (select_ret == 1) {
+            if ((sz = recv(s, (char*)&buf, sizeof(buf), 0)) < 0) {
+                iperf_err(test, "Failed recv: %s  socket: %d", STRERROR, s);
+                closesocket(s);
+                i_errno = IESTREAMREAD;
+                return -1;
+            }
+
+            if (test->debug) {
+                iperf_err(test, "Received response from server: %s", hexdump((const unsigned char*)(&buf), sizeof(buf), 1, 1));
+            }
+            return s;
+        }
+        else {
+            if (test->debug) {
+                iperf_err(test, "No response from server, will retry: %d / 30", i);
+            }
+        }
     }
 
-    return s;
+    /* if here, we could not get a response in time. */
+    iperf_err(test, "Did not receive UDP connect response in time.");
+    closesocket(s);
+    i_errno = IESTREAMREAD;
+    return -1;
 }
 
 

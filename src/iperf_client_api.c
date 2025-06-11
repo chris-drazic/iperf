@@ -468,7 +468,7 @@ iperf_connect(struct iperf_test *test)
         return -1;
     }
 
-    FD_SET(test->ctrl_sck, &test->read_set);
+    IFD_SET(test->ctrl_sck, &test->read_set, test);
     if (test->ctrl_sck > test->max_fd) test->max_fd = test->ctrl_sck;
 
     len = sizeof(opt);
@@ -711,7 +711,7 @@ iperf_run_client(struct iperf_test * test)
  	        if (iperf_handle_message_client(test) < 0) {
 		    goto cleanup_and_fail;
 		}
-		FD_CLR(test->ctrl_sck, &read_set);
+		IFD_CLR(test->ctrl_sck, &read_set, test);
 	    }
 	}
 

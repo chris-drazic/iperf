@@ -147,8 +147,7 @@ iperf_server_listen(struct iperf_test *test)
 
     FD_ZERO(&test->read_set);
     FD_ZERO(&test->write_set);
-    FD_SET(test->listener, &test->read_set);
-    if (test->listener > test->max_fd) test->max_fd = test->listener;
+    IFD_SET(test->listener, &test->read_set, test);
 
     return 0;
 }
@@ -161,6 +160,10 @@ iperf_accept(struct iperf_test *test)
     signed char rbuf = ACCESS_DENIED;
     socklen_t len;
     struct sockaddr_storage addr;
+
+    if (test->debug) {
+        fprintf(stderr, "iperf-accept called.\n");
+    }
 
     len = sizeof(addr);
     if ((s = accept(test->listener, (struct sockaddr *) &addr, &len)) < 0) {
@@ -205,7 +208,7 @@ iperf_accept(struct iperf_test *test)
             i_errno = IERECVCOOKIE;
             goto error_handling;
         }
-        FD_SET(test->ctrl_sck, &test->read_set);
+        IFD_SET(test->ctrl_sck, &test->read_set, test);
         if (test->ctrl_sck > test->max_fd) test->max_fd = test->ctrl_sck;
 
         if (iperf_set_send_state(test, PARAM_EXCHANGE) != 0)
@@ -280,9 +283,10 @@ iperf_handle_message_server(struct iperf_test *test)
             cpu_util(test->cpu_util);
             test->stats_callback(test);
             SLIST_FOREACH(sp, &test->streams, streams) {
-                FD_CLR(sp->socket, &test->read_set);
-                FD_CLR(sp->socket, &test->write_set);
+                IFD_CLR(sp->socket, &test->read_set, test);
+                IFD_CLR(sp->socket, &test->write_set, test);
                 closesocket(sp->socket);
+                sp->socket = -1;
             }
             test->reporter_callback(test);
             if (iperf_set_send_state(test, EXCHANGE_RESULTS) != 0)
@@ -310,9 +314,10 @@ iperf_handle_message_server(struct iperf_test *test)
             // XXX: Remove this line below!
 	    iperf_err(test, "the client has terminated");
             SLIST_FOREACH(sp, &test->streams, streams) {
-                FD_CLR(sp->socket, &test->read_set);
-                FD_CLR(sp->socket, &test->write_set);
+                IFD_CLR(sp->socket, &test->read_set, test);
+                IFD_CLR(sp->socket, &test->write_set, test);
                 closesocket(sp->socket);
+                sp->socket = -1;
             }
             iperf_set_test_state(test, IPERF_DONE);
             break;
@@ -491,8 +496,8 @@ cleanup_server(struct iperf_test *test)
     /* Close open streams */
     SLIST_FOREACH(sp, &test->streams, streams) {
 	if (sp->socket > -1) {
-            FD_CLR(sp->socket, &test->read_set);
-            FD_CLR(sp->socket, &test->write_set);
+            IFD_CLR(sp->socket, &test->read_set, test);
+            IFD_CLR(sp->socket, &test->write_set, test);
             close(sp->socket);
             sp->socket = -1;
 	}
@@ -642,8 +647,23 @@ iperf_run_server(struct iperf_test *test)
             timeout = &used_timeout;
         }
 
+        if (test->debug) {
+            if (timeout)
+                fprintf(stderr, "timeout: %d.%06d  max-fd: %d\n", timeout->tv_sec, timeout->tv_usec, test->max_fd);
+            else
+                fprintf(stderr, "timeout NULL, max-fd: %d\n", test->max_fd);
+        }
+
         result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
+        if (test->debug) {
+            fprintf(stderr, "select result: %d, listener: %d  ISSET-listener: %d  test-state: %d(%s)\n",
+                    result, test->listener, FD_ISSET(test->listener, &read_set), test->state,
+                    iperf_get_state_str(test->state));
+            fprintf(stderr, "prot-listener: %d  ISSET: %d  max-fd: %d\n",
+                    test->prot_listener, FD_ISSET(test->prot_listener, &read_set), test->max_fd);
+        }
         if (result < 0 && errno != EINTR) {
+            fprintf(stderr, "Cleaning server, select had error: %s\n", STRERROR);
             cleanup_server(test);
             i_errno = IESELECT;
             return -1;
@@ -707,10 +727,10 @@ iperf_run_server(struct iperf_test *test)
             if (FD_ISSET(test->listener, &read_set)) {
                 if (test->state != CREATE_STREAMS) {
                     if (iperf_accept(test) < 0) {
-			cleanup_server(test);
+			            cleanup_server(test);
                         return -1;
                     }
-                    FD_CLR(test->listener, &read_set);
+                    IFD_CLR(test->listener, &read_set, test);
 
                     // Set streams number
                     if (test->mode == BIDIRECTIONAL) {
@@ -727,19 +747,22 @@ iperf_run_server(struct iperf_test *test)
             }
             if (FD_ISSET(test->ctrl_sck, &read_set)) {
                 if (iperf_handle_message_server(test) < 0) {
-		    cleanup_server(test);
+                    cleanup_server(test);
                     return -1;
-		}
-                FD_CLR(test->ctrl_sck, &read_set);
+		        }
+                IFD_CLR(test->ctrl_sck, &read_set, test);
             }
 
             if (test->state == CREATE_STREAMS) {
                 if (FD_ISSET(test->prot_listener, &read_set)) {
 
                     if ((s = test->protocol->accept(test)) < 0) {
-			cleanup_server(test);
+			            cleanup_server(test);
                         return -1;
 		    }
+            if (test->debug) {
+                fprintf(stderr, "create-streams, accepted socket: %d\n", s);
+            }
 
 		    /* apply other common socket options */
                     if (iperf_common_sockopts(test, s) < 0)
@@ -849,18 +872,18 @@ iperf_run_server(struct iperf_test *test)
                             flag = -1;
                         }
                     }
-                    FD_CLR(test->prot_listener, &read_set);
+                    IFD_CLR(test->prot_listener, &read_set, test);
                 }
 
 
                 if (rec_streams_accepted == streams_to_rec && send_streams_accepted == streams_to_send) {
                     if (test->protocol->id != Ptcp) {
-                        FD_CLR(test->prot_listener, &test->read_set);
+                        IFD_CLR(test->prot_listener, &test->read_set, test);
                         closesocket(test->prot_listener);
                         test->prot_listener = -1;
                     } else {
                         if (test->no_delay || test->settings->mss || test->settings->socket_bufsize) {
-                            FD_CLR(test->listener, &test->read_set);
+                            IFD_CLR(test->listener, &test->read_set, test);
                             closesocket(test->listener);
 			    test->listener = -1;
                             if ((s = netannounce(test->settings->domain, Ptcp, test->bind_address, test->bind_dev, test->server_port)) < 0) {
@@ -869,8 +892,7 @@ iperf_run_server(struct iperf_test *test)
                                 return -1;
                             }
                             test->listener = s;
-                            FD_SET(test->listener, &test->read_set);
-			    if (test->listener > test->max_fd) test->max_fd = test->listener;
+                            IFD_SET(test->listener, &test->read_set, test);
                         }
                     }
                     test->prot_listener = -1;

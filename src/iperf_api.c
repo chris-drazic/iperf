@@ -4163,13 +4163,8 @@ iperf_print_results(struct iperf_test *test)
                                                                     (int64_t) ((sp->result->stream_count_rtt == 0) ? 0 : sp->result->stream_sum_rtt / sp->result->stream_count_rtt),
                                                                     stream_must_be_sender));
                         else
-                            if (test->role == 's' && !sp->sender) {
-                                if (test->verbose)
-                                    iperf_printf(test, report_sender_not_available_format, sp->stream_id);
-                            }
-                            else {
-                                iperf_printf(test, report_bw_retrans_format, sp->stream_id, mbuf, start_time, sender_time, ubuf, nbuf, sp->result->stream_retrans, report_sender);
-                            }
+                            iperf_printf(test, report_bw_retrans_format, sp->stream_id, mbuf, start_time,
+                                         sender_time, ubuf, nbuf, sp->result->stream_retrans, report_sender);
                     } else {
                         /* Sender summary, TCP and SCTP without retransmits. */
                         if (test->json_output)
@@ -4180,13 +4175,7 @@ iperf_print_results(struct iperf_test *test)
                                                                     (double) sender_time, (int64_t) bytes_sent,
                                                                     bandwidth * 8,  stream_must_be_sender));
                         else
-                            if (test->role == 's' && !sp->sender) {
-                                if (test->verbose)
-                                    iperf_printf(test, report_sender_not_available_format, sp->socket);
-                            }
-                            else {
-                                iperf_printf(test, report_bw_format, sp->socket, mbuf, start_time, sender_time, ubuf, nbuf, report_sender);
-                            }
+                            iperf_printf(test, report_bw_format, sp->stream_id, mbuf, start_time, sender_time, ubuf, nbuf, report_sender);
                     }
                 } else {
                     /* Sender summary, UDP. */
@@ -4225,20 +4214,7 @@ iperf_print_results(struct iperf_test *test)
                                                                 stream_must_be_sender));
                     }
                     else {
-                        /*
-                         * Due to ordering of messages on the control channel,
-                         * the server cannot report on client-side summary
-                         * statistics.  If we're the server, omit one set of
-                         * summary statistics to avoid giving meaningless
-                         * results.
-                         */
-                        if (test->role == 's' && !sp->sender) {
-                            if (test->verbose)
-                                iperf_printf(test, report_sender_not_available_format, sp->stream_id);
-                        }
-                        else {
-                            iperf_printf(test, report_bw_udp_format, sp->stream_id, mbuf, start_time, sender_time, ubuf, nbuf, 0.0, (int64_t) 0, (sender_packet_count - sender_omitted_packet_count), (double) 0, report_sender);
-                        }
+                        iperf_printf(test, report_bw_udp_format, sp->stream_id, mbuf, start_time, sender_time, ubuf, nbuf, 0.0, (int64_t) 0, (sender_packet_count - sender_omitted_packet_count), (double) 0, report_sender);
                         if ((sp->outoforder_packets - sp->omitted_outoforder_packets) > 0)
                           iperf_printf(test, report_sum_outoforder, mbuf, start_time, sender_time, (sp->outoforder_packets - sp->omitted_outoforder_packets));
                     }
@@ -4299,23 +4275,18 @@ iperf_print_results(struct iperf_test *test)
                             lost_percent = 0.0;
                         }
 
-                        if (test->role == 's' && sp->sender) {
-                            if (test->verbose)
-                                iperf_printf(test, report_receiver_not_available_format, sp->stream_id);
-                        }
-                        else {
-                            if (sp->omitted_cnt_error > -1) {
-                                iperf_printf(test, report_bw_udp_format, sp->stream_id, mbuf, start_time,
+                        if (sp->omitted_cnt_error > -1) {
+                            iperf_printf(test, report_bw_udp_format, sp->stream_id, mbuf, start_time,
                                     receiver_time, ubuf, nbuf, sp->jitter * 1000.0,
                                     (sp->cnt_error - sp->omitted_cnt_error),
                                     (receiver_packet_count - receiver_omitted_packet_count),
                                     lost_percent, report_receiver);
-                            } else {
-                                iperf_printf(test, report_bw_udp_format_no_omitted_error, sp->stream_id, mbuf,
+                        }
+                        else {
+                            iperf_printf(test, report_bw_udp_format_no_omitted_error, sp->stream_id, mbuf,
                                     start_time, receiver_time, ubuf, nbuf, sp->jitter * 1000.0,
                                     (receiver_packet_count - receiver_omitted_packet_count),
                                     report_receiver);
-                            }
                         }
                     }
                 }
@@ -4360,24 +4331,17 @@ iperf_print_results(struct iperf_test *test)
                     if (test->json_output)
                         cJSON_AddItemToObject(test->json_end, sum_sent_name, iperf_json_printf("start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f  retransmits: %d sender: %b", (double) start_time, (double) sender_time, (double) sender_time, (int64_t) total_sent, bandwidth * 8, (int64_t) total_retransmits, stream_must_be_sender));
                     else
-                        if (test->role == 's' && !stream_must_be_sender) {
-                            if (test->verbose)
-                                iperf_printf(test, report_sender_not_available_summary_format, "SUM");
-                        }
-                        else {
-                          iperf_printf(test, report_sum_bw_retrans_format, mbuf, start_time, sender_time, ubuf, nbuf, total_retransmits, report_sender);
-                        }
+                        iperf_printf(test, report_sum_bw_retrans_format, mbuf,
+                            start_time, sender_time, ubuf, nbuf, total_retransmits,
+                            report_sender);
                 } else {
                     /* Summary sum, TCP without retransmits. */
                     if (test->json_output)
                         cJSON_AddItemToObject(test->json_end, sum_sent_name, iperf_json_printf("start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f sender: %b", (double) start_time, (double) sender_time, (double) sender_time, (int64_t) total_sent, bandwidth * 8, stream_must_be_sender));
                     else
                         if (test->role == 's' && !stream_must_be_sender) {
-                            if (test->verbose)
-                                iperf_printf(test, report_sender_not_available_summary_format, "SUM");
-                        }
-                        else {
-                            iperf_printf(test, report_sum_bw_format, mbuf, start_time, sender_time, ubuf, nbuf, report_sender);
+                            iperf_printf(test, report_sum_bw_format, mbuf,
+                                start_time, sender_time, ubuf, nbuf, report_sender);
                         }
                 }
                 unit_snprintf(ubuf, UNIT_LEN, (double) total_received, 'A', test->settings->unit_precision);
@@ -4392,13 +4356,7 @@ iperf_print_results(struct iperf_test *test)
                 if (test->json_output)
                     cJSON_AddItemToObject(test->json_end, sum_received_name, iperf_json_printf("start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f sender: %b", (double) start_time, (double) receiver_time, (double) receiver_time, (int64_t) total_received, bandwidth * 8, stream_must_be_sender));
                 else
-                    if (test->role == 's' && stream_must_be_sender) {
-                        if (test->verbose)
-                            iperf_printf(test, report_receiver_not_available_summary_format, "SUM");
-                    }
-                    else {
-                        iperf_printf(test, report_sum_bw_format, mbuf, start_time, receiver_time, ubuf, nbuf, report_receiver);
-                    }
+                    iperf_printf(test, report_sum_bw_format, mbuf, start_time, receiver_time, ubuf, nbuf, report_receiver);
             } else {
                 /* Summary sum, UDP. */
                 avg_jitter /= test->num_streams;
@@ -4431,7 +4389,10 @@ iperf_print_results(struct iperf_test *test)
                      */
                     if (! (test->role == 's' && !stream_must_be_sender) ) {
                         unit_snprintf(ubuf, UNIT_LEN, (double) total_sent, 'A', test->settings->unit_precision);
-                        iperf_printf(test, report_sum_bw_udp_format, mbuf, start_time, sender_time, ubuf, nbuf, 0.0, (int64_t) 0, sender_total_packets, 0.0, report_sender);
+                        iperf_printf(test, report_sum_bw_udp_format, mbuf,
+                            start_time, sender_time, ubuf, nbuf, 0.0,
+                            (int64_t) 0, sender_total_packets, 0.0, 
+                            report_sender);
                     }
                     if (! (test->role == 's' && stream_must_be_sender) ) {
 

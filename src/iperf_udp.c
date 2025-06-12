@@ -190,11 +190,16 @@ iperf_udp_recv(struct iperf_stream *sp)
 	if (first_packet)
 	    sp->prev_transit = transit;
 
-	d = transit - sp->prev_transit;
-	if (d < 0)
-	    d = -d;
-	sp->prev_transit = transit;
-	sp->jitter += (d - sp->jitter) / 16.0;
+        if (sp->prev_transit) {
+            d = transit - sp->prev_transit;
+            if (d < 0)
+                d = -d;
+            sp->jitter += (d - sp->jitter) / 16.0;
+        }
+        else {
+            sp->jitter = 0;
+        }
+        sp->prev_transit = transit;
     }
     else {
 	if (test->debug_level >= DEBUG_LEVEL_INFO)

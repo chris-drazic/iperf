@@ -504,6 +504,14 @@ void cleanup_server(struct iperf_test *test)
         test->prot_listener = -1;
     }
 
+    /* Free streams */
+    while (!SLIST_EMPTY(&test->streams)) {
+        sp = SLIST_FIRST(&test->streams);
+        SLIST_REMOVE_HEAD(&test->streams, streams);
+        iclosesocket(sp->socket, test);
+        iperf_free_stream(sp);
+    }
+
     /* Cancel any remaining timers. */
     if (test->stats_timer != NULL) {
         tmr_cancel(test->stats_timer);

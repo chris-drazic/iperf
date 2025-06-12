@@ -430,23 +430,32 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
 }
 
 void iclosesocket(int s, struct iperf_test *test) {
+    int rv;
+
+    if (test->debug) {
+        iperf_err(test, "Closing socket: %d", s);
+    }
+
     if (s < 0)
         return;
 #ifdef __WIN32__
-    closesocket(s);
+    rv = closesocket(s);
 #else
-    close(s);
+    rv = close(s);
 #endif
-    if (test) {
-        if (s == test->ctrl_sck)
-           test->ctrl_sck = -1;
-        if (s == test->listener)
-            test->listener = -1;
-        if (s == test->prot_listener)
-            test->prot_listener = -1;
-        IFD_CLR(s, &test->read_set, test);
-        IFD_CLR(s, &test->write_set, test);
-    }
+    if (rv < 0) {
+        iperf_err(test, "Error closing socket %d, rv: %d, error: %s",
+                  s, rv, STRERROR);
+     }
+    
+    if (s == test->ctrl_sck)
+        test->ctrl_sck = -1;
+    if (s == test->listener)
+        test->listener = -1;
+    if (s == test->prot_listener)
+        test->prot_listener = -1;
+    IFD_CLR(s, &test->read_set, test);
+    IFD_CLR(s, &test->write_set, test);
 }
 
 int waitRead(int fd, char *buf, size_t count, int prot, struct iperf_test *test, int timeout_ms)

@@ -26,9 +26,15 @@
  */
 
 #include "iperf_config.h"
-
 #include <time.h>
 #include <sys/types.h>
+
+#ifdef __WIN32__
+/* to fix bugs about X509_NAME not being found */
+#include <winsock.h>
+#include <wincrypt.h>
+#endif
+
 #include <openssl/bio.h>
 
 #ifdef __WIN32__
@@ -143,8 +149,6 @@ int tcflow (int fd, int action);
 /* We want to intercept TIOCGWINSZ, but not FIONREAD.  No need to forward
    TIOCSWINSZ; readline only uses it to suspend if in the background.
    Readline doesn't make any other ioctl calls on mingw.  */
-
-#include <winsock.h>
 
 struct winsize
 {

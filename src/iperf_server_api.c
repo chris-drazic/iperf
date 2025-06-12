@@ -732,13 +732,13 @@ iperf_run_server(struct iperf_test *test)
         }
 
 	if (result > 0) {
+            // Check listener socket
             if (FD_ISSET(test->listener, &read_set)) {
                 if (test->state != CREATE_STREAMS) {
                     if (iperf_accept(test) < 0) {
 			            cleanup_server(test);
                         return -1;
                     }
-                    IFD_CLR(test->listener, &read_set, test);
 
                     // Set streams number
                     if (test->mode == BIDIRECTIONAL) {
@@ -753,12 +753,12 @@ iperf_run_server(struct iperf_test *test)
                     }
                 }
             }
+            // Check control socket
             if (FD_ISSET(test->ctrl_sck, &read_set)) {
                 if (iperf_handle_message_server(test) < 0) {
                     cleanup_server(test);
                     return -1;
 		        }
-                IFD_CLR(test->ctrl_sck, &read_set, test);
             }
 
             if (test->state == CREATE_STREAMS) {
@@ -880,17 +880,18 @@ iperf_run_server(struct iperf_test *test)
                             flag = -1;
                         }
                     }
-                    IFD_CLR(test->prot_listener, &read_set, test);
                 }
 
 
                 if (rec_streams_accepted == streams_to_rec && send_streams_accepted == streams_to_send) {
                     if (test->protocol->id != Ptcp) {
+                        // Stop listening for more protocol connections, we are full.
                         IFD_CLR(test->prot_listener, &test->read_set, test);
                         closesocket(test->prot_listener);
                         test->prot_listener = -1;
                     } else {
                         if (test->no_delay || test->settings->mss || test->settings->socket_bufsize) {
+                            // Re-open protocol listener socket, I am not sure why. --Ben
                             IFD_CLR(test->listener, &test->read_set, test);
                             closesocket(test->listener);
 			    test->listener = -1;
@@ -971,8 +972,8 @@ iperf_run_server(struct iperf_test *test)
                         cleanup_server(test);
                     };
                 }
-            }
-        }
+            } /* if test is running state */
+        } /* if some file descriptor has data to read/write */
 
 	if (result == 0 ||
 	    (timeout != NULL && timeout->tv_sec == 0 && timeout->tv_usec == 0)) {

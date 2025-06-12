@@ -564,6 +564,7 @@ iperf_run_server(struct iperf_test *test)
     int64_t t_usecs;
     int64_t timeout_us;
     int64_t rcv_timeout_us;
+    unsigned long last_dbg = 0;
 
     if (test->logfile) {
         if (iperf_open_logfile(test) < 0)
@@ -648,7 +649,7 @@ iperf_run_server(struct iperf_test *test)
             timeout = &used_timeout;
         }
 
-        if (test->debug) {
+        if (test->debug > 1 || (test->debug && (last_dbg != now.secs))) {
             if (timeout)
                fprintf(stderr, "timeout: %ld.%06ld  max-fd: %d state: %d (%s)\n",
                        (long)(timeout->tv_sec), (long)(timeout->tv_usec), test->max_fd,
@@ -660,13 +661,14 @@ iperf_run_server(struct iperf_test *test)
         }
 
         result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
-        if (test->debug) {
+        if (test->debug > 1 || (test->debug && (last_dbg != now.secs))) {
             fprintf(stderr, "select result: %d, listener: %d  ISSET-listener: %d  test-state: %d(%s)\n",
                     result, test->listener, FD_ISSET(test->listener, &read_set), test->state,
                     iperf_get_state_str(test->state));
             fprintf(stderr, "prot-listener: %d  ISSET: %d  max-fd: %d\n",
                     test->prot_listener, FD_ISSET(test->prot_listener, &read_set), test->max_fd);
             print_fdset(test->max_fd, &read_set, &write_set);
+            last_dbg = now.secs;
         }
         if (result < 0 && errno != EINTR) {
             fprintf(stderr, "Cleaning server, select had error: %s\n", STRERROR);

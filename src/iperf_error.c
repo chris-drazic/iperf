@@ -135,7 +135,7 @@ iperf_exit(struct iperf_test *test, int exit_code, const char *format, va_list a
 	if (test && test->outfile && test->outfile != stdout) {
 	    if (ct) {
 	    fprintf(test->outfile, "%llu %s %s iperf3: %s\n",
-                    getCurMs(), test->protocol ? test->protocol->name : "NULL-PROTO",
+                    (unsigned long long)getCurMs(), test->protocol ? test->protocol->name : "NULL-PROTO",
                     iperf_get_state_str(test->state), str);
 	    }
 	    fprintf(test->outfile, "iperf3: %s\n", str);
@@ -143,7 +143,7 @@ iperf_exit(struct iperf_test *test, int exit_code, const char *format, va_list a
 	else {
 	    if (ct) {
 	    fprintf(test->outfile, "%llu %s %s iperf3: %s\n",
-                    getCurMs(), test->protocol ? test->protocol->name : "NULL-PROTO",
+                    (unsigned long long)getCurMs(), test->protocol ? test->protocol->name : "NULL-PROTO",
                     iperf_get_state_str(test->state), str);
 	    }
 	    fprintf(stderr, "iperf3: %s\n", str);

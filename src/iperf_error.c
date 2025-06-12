@@ -46,32 +46,57 @@ iperf_err(struct iperf_test *test, const char *format, ...)
     struct tm *ltm = NULL;
     char *ct = NULL;
 
+    /* For reasons that I don't understand, when I run iperf with debugging on windows,
+     * (inside power-shell on win 7 specifically)
+     * Then it appears it blocks on writing to stderr fairly often, until I hit enter in
+     * the shell.
+     * I do not see the problem writing to stdout.  So, switch err messages to stdout for
+     * windows. --Ben
+     */
+
+#ifdef __WIN32__
+    #define __OFILE stdout
+#else
+    #define __OFILE stderr
+#endif
+
     /* Timestamp if requested */
     if (test != NULL && test->timestamps) {
-	time(&now);
-	ltm = localtime(&now);
-	strftime(iperf_timestrerr, sizeof(iperf_timestrerr), test->timestamp_format, ltm);
-	ct = iperf_timestrerr;
+        time(&now);
+        ltm = localtime(&now);
+        strftime(iperf_timestrerr, sizeof(iperf_timestrerr), test->timestamp_format, ltm);
+        ct = iperf_timestrerr;
     }
 
     va_start(argp, format);
     vsnprintf(str, sizeof(str), format, argp);
-    if (test != NULL && test->json_output && test->json_top != NULL)
-	cJSON_AddStringToObject(test->json_top, "error", str);
+    if (test != NULL && test->json_output && test->json_top != NULL) {
+	    cJSON_AddStringToObject(test->json_top, "error", str);
+    }
     else {
         if (test != NULL && pthread_mutex_lock(&(test->print_mutex)) != 0) {
             perror("iperf_err: pthread_mutex_lock");
         }
+        if (test && test->outfile && test->outfile != __OFILE) {
+ 	        fprintf(test->outfile, "%llu %s %s iperf3: %s\n",
+                (unsigned long long)getCurMs(), test->protocol ? test->protocol->name : "NULL-PROTO",
+                iperf_get_state_str(test->state), str);
+        }
+        else {
+	        fprintf(__OFILE, "%llu %s %s iperf3: %s\n",
+                    (unsigned long long)getCurMs(), test->protocol ? test->protocol->name : "NULL-PROTO",
+                    iperf_get_state_str(test->state), str);
+        }
 
 	if (test != NULL && test->outfile != NULL && test->outfile != stdout) {
 	    if (ct) {
-		fprintf(test->outfile, "%s", ct);
+		    fprintf(test->outfile, "%s", ct);
 	    }
 	    fprintf(test->outfile, "iperf3: %s\n", str);
 	}
 	else {
 	    if (ct) {
-		fprintf(stderr, "%s", ct);
+		    fprintf(stderr, "%s", ct);
 	    }
 	    fprintf(stderr, "iperf3: %s\n", str);
 	}

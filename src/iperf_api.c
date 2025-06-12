@@ -1722,7 +1722,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
 		usage_long(stdout);
 		exit(0);
             default:
-                fprintf(stderr, "\n");
+                iperf_err(test,  "\n");
                 usage();
                 exit(1);
         }
@@ -1897,15 +1897,15 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
 
     /* Show warning if JSON output is used with explicit report format */
     if ((test->json_output) && (test->settings->unit_format != 'a')) {
-        warning("Report format (-f) flag ignored with JSON output (-J)");
+        iperf_err(test, "Report format (-f) flag ignored with JSON output (-J)");
     }
 
     /* Show warning if JSON output is used with verbose or debug flags */
     if (test->json_output && test->verbose) {
-        warning("Verbose output (-v) may interfere with JSON output (-J)");
+        iperf_err(test, "Verbose output (-v) may interfere with JSON output (-J)");
     }
     if (test->json_output && test->debug) {
-        warning("Debug output (-d) may interfere with JSON output (-J)");
+        iperf_err(test, "Debug output (-d) may interfere with JSON output (-J)");
     }
 
     return 0;
@@ -1928,9 +1928,9 @@ int iperf_open_logfile(struct iperf_test *test)
 void iperf_set_state(struct iperf_test *test, signed char state, const char* dbg)
 {
     if (test->debug) {
-        fprintf(stderr, "test: %p state: %d(%s) ==> %d(%s) dbg: %s\n",
-                test, test->state, iperf_get_state_str(test->state),
-                state, iperf_get_state_str(state), dbg);
+        iperf_err(test, "test: %p state: %d(%s) ==> %d(%s) dbg: %s\n",
+                  test, test->state, iperf_get_state_str(test->state),
+                  state, iperf_get_state_str(state), dbg);
     }
     test->state = state;
 }
@@ -2311,8 +2311,8 @@ iperf_exchange_parameters(struct iperf_test *test)
 
 void _fd_set(int fd, fd_set* fdset, struct iperf_test *test, const char* file, int line) {
     if (test->debug > 1) {
-        fprintf(stderr, "FD-SET, fd: %d  at %s:%d\n",
-                fd, file, line);
+        iperf_err(test, "FD-SET, fd: %d  at %s:%d",
+                  fd, file, line);
     }
     FD_SET(fd, fdset);
     if (fd > test->max_fd)
@@ -2321,8 +2321,8 @@ void _fd_set(int fd, fd_set* fdset, struct iperf_test *test, const char* file, i
 
 void _fd_clr(int fd, fd_set* fdset, struct iperf_test *test, const char* file, int line) {
     if (test->debug > 1) {
-        fprintf(stderr, "FD-CLR, fd: %d  at %s:%d\n",
-                fd, file, line);
+        iperf_err(test, "FD-CLR, fd: %d  at %s:%d",
+                  fd, file, line);
     }
     FD_CLR(fd, fdset);
 }
@@ -4697,7 +4697,7 @@ iperf_new_stream(struct iperf_test *test, int s, int sender)
 
     sp = (struct iperf_stream *) malloc(sizeof(struct iperf_stream));
     if (!sp) {
-        fprintf(stderr, "Failed to malloc iperf-stream.\n");
+        iperf_err(test, "Failed to malloc iperf-stream.\n");
         i_errno = IECREATESTREAM;
         return NULL;
     }
@@ -4710,7 +4710,7 @@ iperf_new_stream(struct iperf_test *test, int s, int sender)
     sp->result = (struct iperf_stream_result *) malloc(sizeof(struct iperf_stream_result));
     if (!sp->result) {
         free(sp);
-        fprintf(stderr, "Failed to malloc sp->result.\n");
+        iperf_err(test, "Failed to malloc sp->result.");
         i_errno = IECREATESTREAM;
         return NULL;
     }
@@ -4722,7 +4722,7 @@ iperf_new_stream(struct iperf_test *test, int s, int sender)
     errno = 0;
     sp->buffer_fd = mkstemp(template);
     if (sp->buffer_fd == -1) {
-        fprintf(stderr, "Failed to mkstemp %s (%s)\n", template, STRERROR);
+        iperf_err(test, "Failed to mkstemp %s (%s)", template, STRERROR);
         i_errno = IECREATESTREAM;
         free(sp->result);
         free(sp);
@@ -4739,7 +4739,7 @@ iperf_new_stream(struct iperf_test *test, int s, int sender)
     }
 #endif
     if (ftruncate(sp->buffer_fd, test->settings->blksize) < 0) {
-        fprintf(stderr, "Failed to truncate, fd: %d  blksize: %d\n", sp->buffer_fd, test->settings->blksize);
+        iperf_err(test,  "Failed to truncate, fd: %d  blksize: %d\n", sp->buffer_fd, test->settings->blksize);
         i_errno = IECREATESTREAM;
         free(sp->result);
         free(sp);
@@ -4747,7 +4747,7 @@ iperf_new_stream(struct iperf_test *test, int s, int sender)
     }
     sp->buffer = (char *) mmap(NULL, test->settings->blksize, PROT_READ|PROT_WRITE, MAP_PRIVATE, sp->buffer_fd, 0);
     if (sp->buffer == MAP_FAILED) {
-        fprintf(stderr, "Failed to mmap.\n");
+        iperf_err(test, "Failed to mmap.");
         i_errno = IECREATESTREAM;
         free(sp->result);
         free(sp);
@@ -4830,7 +4830,7 @@ iperf_common_sockopts(struct iperf_test *test, int s)
         }
     }
 #else
-        fprintf(stderr, "WARNING:  ToS: 0x%x requested, but windows does not support setting ToS.  Ignoring.\n",
+        iperf_err(test,  "WARNING:  ToS: 0x%x requested, but windows does not support setting ToS.  Ignoring.\n",
                 test->settings->tos);
 #endif
     return 0;

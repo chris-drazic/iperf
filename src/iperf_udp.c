@@ -122,7 +122,7 @@ iperf_udp_recv(struct iperf_stream *sp)
 	}
 
 	if (sp->test->debug > 1)
-	    iperf_err(stderr, "pcount %" PRIu64 " packet_count %" PRIu64 "\n", pcount, sp->packet_count);
+	    iperf_err(sp->test, "pcount %" PRIu64 " packet_count %" PRIu64 "\n", pcount, sp->packet_count);
 
 	/*
 	 * Try to handle out of order packets.  The way we do this
@@ -144,7 +144,7 @@ iperf_udp_recv(struct iperf_stream *sp)
 		/* There's a gap so count that as a loss. */
 		sp->cnt_error += (pcount - 1) - sp->packet_count;
                 if (test->debug_level >= DEBUG_LEVEL_INFO)
-		    fprintf(stderr, "LOST %" PRIu64 " PACKETS - received packet %" PRIu64 " but expected sequence %" PRIu64 " on stream %d\n", (pcount - sp->packet_count + 1), pcount, sp->packet_count + 1, sp->socket);
+		    iperf_err(test, "LOST %" PRIu64 " PACKETS - received packet %" PRIu64 " but expected sequence %" PRIu64 " on stream %d\n", (pcount - sp->packet_count + 1), pcount, sp->packet_count + 1, sp->socket);
 	    }
 	    /* Update the highest sequence number seen so far. */
 	    sp->packet_count = pcount;
@@ -167,7 +167,7 @@ iperf_udp_recv(struct iperf_stream *sp)
 
 	    /* Log the out-of-order packet */
 	    if (test->debug_level >= DEBUG_LEVEL_INFO)
-		fprintf(stderr, "OUT OF ORDER - received packet %" PRIu64 " but expected sequence %" PRIu64 " on stream %d\n", pcount, sp->packet_count + 1, sp->socket);
+		iperf_err(test, "OUT OF ORDER - received packet %" PRIu64 " but expected sequence %" PRIu64 " on stream %d\n", pcount, sp->packet_count + 1, sp->socket);
 	}
 
 	/*
@@ -203,7 +203,7 @@ iperf_udp_recv(struct iperf_stream *sp)
     }
     else {
 	if (test->debug_level >= DEBUG_LEVEL_INFO)
-	    printf("Late receive, state = %d\n", test->state);
+	    iperf_err(test, "Late receive, state = %d\n", test->state);
     }
 
     return r;
@@ -260,7 +260,7 @@ iperf_udp_send(struct iperf_stream *sp)
                                  * Allows "resending" a massage with the same numbering */
         if (r < 0) {
             if (r == NET_SOFTERROR && sp->test->debug_level >= DEBUG_LEVEL_INFO)
-                printf("UDP send failed on NET_SOFTERROR. errno=%s\n", strerror(errno));
+                iperf_err(sp->test, "UDP send failed on NET_SOFTERROR. errno=%s\n", strerror(errno));
             return r;
         }
     }
@@ -269,7 +269,7 @@ iperf_udp_send(struct iperf_stream *sp)
     sp->result->bytes_sent_this_interval += r;
 
     if (sp->test->debug_level > 1)
-	    printf("sent %d bytes of %d, total %" PRIu64 "\n", r, sp->settings->blksize, sp->result->bytes_sent);
+	    iperf_err(sp->test, "sent %d bytes of %d, total %" PRIu64 "\n", r, sp->settings->blksize, sp->result->bytes_sent);
 
     return r;
 }
@@ -318,61 +318,53 @@ iperf_udp_buffercheck(struct iperf_test *test, int s)
     /* Read back and verify the sender socket buffer size */
     optlen = sizeof(sndbuf_actual);
     if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, (char*)&sndbuf_actual, &optlen) < 0) {
-	i_errno = IESETBUF;
-	return -1;
+        i_errno = IESETBUF;
+        return -1;
     }
     if (test->debug) {
-	printf("SNDBUF is %u, expecting %u, fd: %d\n", sndbuf_actual, test->settings->socket_bufsize, s);
+	    printf("SNDBUF is %u, expecting %u, fd: %d\n", sndbuf_actual, test->settings->socket_bufsize, s);
     }
     if (test->settings->socket_bufsize && test->settings->socket_bufsize > sndbuf_actual) {
-	i_errno = IESETBUF2;
-	return -1;
+        i_errno = IESETBUF2;
+        return -1;
     }
     if (test->settings->blksize > sndbuf_actual) {
-	char str[WARN_STR_LEN];
-	snprintf(str, sizeof(str),
-		 "Block size %d > sending socket buffer size %d",
-		 test->settings->blksize, sndbuf_actual);
-	warning(str);
-	rc = 1;
+	    iperf_err(test, "Block size %d > sending socket buffer size %d", test->settings->blksize, sndbuf_actual);
+	    rc = 1;
     }
 
     /* Read back and verify the receiver socket buffer size */
     optlen = sizeof(rcvbuf_actual);
     if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, (char*)&rcvbuf_actual, &optlen) < 0) {
-	i_errno = IESETBUF;
-	return -1;
+        i_errno = IESETBUF;
+        return -1;
     }
     if (test->debug) {
-	printf("RCVBUF is %u, expecting %u fd: %d\n", rcvbuf_actual, test->settings->socket_bufsize, s);
+	    iperf_err(test, "RCVBUF is %u, expecting %u fd: %d\n", rcvbuf_actual, test->settings->socket_bufsize, s);
     }
     if (test->settings->socket_bufsize && test->settings->socket_bufsize > rcvbuf_actual) {
-	i_errno = IESETBUF2;
-	return -1;
+        i_errno = IESETBUF2;
+        return -1;
     }
     if (test->settings->blksize > rcvbuf_actual) {
-	char str[WARN_STR_LEN];
-	snprintf(str, sizeof(str),
-		 "Block size %d > receiving socket buffer size %d",
-		 test->settings->blksize, rcvbuf_actual);
-	warning(str);
-	rc = 1;
+	    iperf_err(test, "Block size %d > receiving socket buffer size %d",test->settings->blksize, rcvbuf_actual);
+	    rc = 1;
     }
 
     if (test->json_output) {
-    cJSON *sock_bufsize_item = cJSON_GetObjectItem(test->json_start, "sock_bufsize");
+        cJSON *sock_bufsize_item = cJSON_GetObjectItem(test->json_start, "sock_bufsize");
     if (sock_bufsize_item == NULL) {
-    cJSON_AddNumberToObject(test->json_start, "sock_bufsize", test->settings->socket_bufsize);
+        cJSON_AddNumberToObject(test->json_start, "sock_bufsize", test->settings->socket_bufsize);
     }
 
     cJSON *sndbuf_actual_item = cJSON_GetObjectItem(test->json_start, "sndbuf_actual");
     if (sndbuf_actual_item == NULL) {
-	cJSON_AddNumberToObject(test->json_start, "sndbuf_actual", sndbuf_actual);
+	    cJSON_AddNumberToObject(test->json_start, "sndbuf_actual", sndbuf_actual);
     }
         
     cJSON *rcvbuf_actual_item = cJSON_GetObjectItem(test->json_start, "rcvbuf_actual");
     if (rcvbuf_actual_item == NULL) {
-	cJSON_AddNumberToObject(test->json_start, "rcvbuf_actual", rcvbuf_actual);
+	    cJSON_AddNumberToObject(test->json_start, "rcvbuf_actual", rcvbuf_actual);
     }
     }
 
@@ -428,14 +420,13 @@ iperf_udp_accept(struct iperf_test *test)
         }
         else {
             if (test->debug) {
-                fprintf(stderr, "Did not receive response, try %d / 30, in udp-accept.\n",
-                        i);
+                iperf_err(test, "Did not receive response, try %d / 30, in udp-accept.", i);
             }
         }
     }
 
     /* If here, we did not get a response in time. */
-    fprintf(stderr, "Did not receive frame within 30 seconds in udp-accept.\n");
+    iperf_err(test, "Did not receive frame within 30 seconds in udp-accept.");
     i_errno = IESTREAMACCEPT;
     return -1;
 
@@ -456,15 +447,12 @@ got_response:
      */
     if (rc > 0) {
 	if (test->settings->socket_bufsize == 0) {
-            char str[WARN_STR_LEN];
 	    int bufsize = test->settings->blksize + UDP_BUFFER_EXTRA;
-	    snprintf(str, sizeof(str), "Increasing socket buffer size to %d",
-	             bufsize);
-	    warning(str);
+	    iperf_err(test, "Increasing socket buffer size to %d", bufsize);
 	    test->settings->socket_bufsize = bufsize;
 	    rc = iperf_udp_buffercheck(test, s);
 	    if (rc < 0)
-		return rc;
+		    return rc;
 	}
     }
 
@@ -475,10 +463,10 @@ got_response:
 	uint64_t fqrate = test->settings->fqrate / 8;
 	if (fqrate > 0) {
 	    if (test->debug) {
-		printf("Setting fair-queue socket pacing to %"PRIu64"\n", fqrate);
+		    printf("Setting fair-queue socket pacing to %"PRIu64"\n", fqrate);
 	    }
 	    if (setsockopt(s, SOL_SOCKET, SO_MAX_PACING_RATE, &fqrate, sizeof(fqrate)) < 0) {
-		warning("Unable to set socket pacing");
+		    iperf_err(test, "Unable to set socket pacing");
 	    }
 	}
     }
@@ -627,7 +615,7 @@ iperf_udp_connect(struct iperf_test *test)
 	unsigned int rate = test->settings->rate / 8;
 	if (rate > 0) {
 	    if (test->debug) {
-		printf("Setting application pacing to %u\n", rate);
+		    printf("Setting application pacing to %u\n", rate);
 	    }
 	}
     }
@@ -648,7 +636,7 @@ iperf_udp_connect(struct iperf_test *test)
      */
     buf = UDP_CONNECT_MSG;
     if (test->debug) {
-        fprintf(stderr, "sending '0x39383736' to peer to let them know we are here: %s",
+        iperf_err(test, "sending '0x39383736' to peer to let them know we are here: %s",
                 hexdump((const unsigned char*)(&buf), sizeof(buf), 1, 1));
     }
     for (i = 0; i<30; i++) {

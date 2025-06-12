@@ -34,7 +34,7 @@ int eWouldBlock();
 void iclosesocket(int s, struct iperf_test *test);
 void nonblock(int s);
 
-void print_fdset(int max_fd, fd_set* read_set, fd_set* write_set);
+void print_fdset(int max_fd, fd_set* read_set, fd_set* write_set, struct iperf_test *test);
 
 int timeout_connect(int s, const struct sockaddr *name, socklen_t namelen, int timeout);
 int create_socket(int domain, int type, int proto, const char *local, const char *bind_dev, int local_port, const char *server, int port, struct iperf_test *test, struct addrinfo **server_res_out);

@@ -495,10 +495,7 @@ iperf_connect(struct iperf_test *test)
             test->ctrl_sck_mss = opt;
         }
         else {
-            char str[WARN_STR_LEN];
-            snprintf(str, sizeof(str),
-                     "Ignoring nonsense TCP MSS %d", opt);
-            warning(str);
+            iperf_err(test, "Ignoring nonsense TCP MSS %d", opt);
 
             test->ctrl_sck_mss = 0;
         }
@@ -542,10 +539,8 @@ iperf_connect(struct iperf_test *test)
 	 */
 	if (test->ctrl_sck_mss > 0 &&
 	    test->settings->blksize > test->ctrl_sck_mss) {
-	    char str[WARN_STR_LEN];
-	    snprintf(str, sizeof(str),
-		     "UDP block size %d exceeds TCP MSS %d, may result in fragmentation / drops", test->settings->blksize, test->ctrl_sck_mss);
-	    warning(str);
+            iperf_err(test, "UDP block size %d exceeds TCP MSS %d, may result in fragmentation / drops",
+                      test->settings->blksize, test->ctrl_sck_mss);
 	}
     }
 

@@ -71,7 +71,7 @@ iperf_tcp_recv(struct iperf_stream *sp)
 
 
     if (r < 0) {
-        fprintf(stderr, "tcp-recv, failed (%s), socket: %d\n", STRERROR, sp->socket);
+        iperf_err(sp->test, "tcp-recv, failed (%s), socket: %d\n", STRERROR, sp->socket);
         return r;
     }
 
@@ -141,7 +141,7 @@ iperf_tcp_accept(struct iperf_test * test)
 
 
     if ((s = accept(test->listener, (struct sockaddr *) &addr, &len)) < 0) {
-        fprintf(stderr, "tcp-accept, accept failed: %s\n", STRERROR);
+        iperf_err(test, "tcp-accept, accept failed: %s\n", STRERROR);
         i_errno = IESTREAMCONNECT;
         return -1;
     }
@@ -229,7 +229,7 @@ iperf_tcp_listen(struct iperf_test *test)
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_flags = AI_PASSIVE;
         if ((gerror = getaddrinfo(test->bind_address, portstr, &hints, &res)) != 0) {
-            fprintf(stderr, "tcp-listen, getaddrinfo failed: %s\n", STRERROR);
+            iperf_err(test, "tcp-listen, getaddrinfo failed: %s\n", STRERROR);
             i_errno = IESTREAMLISTEN;
             return -1;
         }
@@ -242,7 +242,7 @@ iperf_tcp_listen(struct iperf_test *test)
 #endif
 
         if ((s = socket(res->ai_family, SOCK_STREAM, proto)) < 0) {
-            fprintf(stderr, "tcp-listen, socket() failed: %s\n", STRERROR);
+            iperf_err(test, "tcp-listen, socket() failed: %s\n", STRERROR);
 	        freeaddrinfo(res);
             i_errno = IESTREAMLISTEN;
             return -1;
@@ -263,10 +263,10 @@ iperf_tcp_listen(struct iperf_test *test)
 #ifndef __WIN32__
         if ((opt = test->settings->mss)) {
             if (setsockopt(s, IPPROTO_TCP, TCP_MAXSEG, &opt, sizeof(opt)) < 0) {
-		saved_errno = errno;
-		iclosesocket(s, test);
-		freeaddrinfo(res);
-		errno = saved_errno;
+                saved_errno = errno;
+                iclosesocket(s, test);
+                freeaddrinfo(res);
+                errno = saved_errno;
                 i_errno = IESETMSS;
                 return -1;
             }
@@ -332,7 +332,7 @@ iperf_tcp_listen(struct iperf_test *test)
 #endif /* IPV6_V6ONLY */
 
         if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
-            fprintf(stderr, "tcp-listen, bind2() failed: %s\n", STRERROR);
+            iperf_err(test, "tcp-listen, bind2() failed: %s\n", STRERROR);
 	        saved_errno = errno;
             iclosesocket(s, test);
             freeaddrinfo(res);
@@ -428,7 +428,7 @@ iperf_tcp_connect(struct iperf_test *test)
 
     s = create_socket(test->settings->domain, SOCK_STREAM, proto, test->bind_address, test->bind_dev, test->bind_port, test->server_hostname, test->server_port, test, &server_res);
     if (s < 0) {
-        fprintf(stderr, "tcp-connect, create_socket failed: %s\n", STRERROR);
+        iperf_err(test, "tcp-connect, create_socket failed: %s\n", STRERROR);
         i_errno = IESTREAMCONNECT;
         return -1;
     }
@@ -618,7 +618,7 @@ iperf_tcp_connect(struct iperf_test *test)
     iperf_common_sockopts(test, s);
 
     if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
-        fprintf(stderr, "tcp-connect, connect() failed: %s\n", STRERROR);
+        iperf_err(test, "tcp-connect, connect() failed: %s\n", STRERROR);
         saved_errno = errno;
         iclosesocket(s, test);
         freeaddrinfo(server_res);

@@ -108,6 +108,7 @@ typedef atomic_uint_fast64_t atomic_iperf_size_t;
 #define OPT_SKIP_RX_COPY 32
 
 /* states */
+#define TEST_INIT 0
 #define TEST_START 1
 #define TEST_RUNNING 2
 //#define RESULT_REQUEST 3 /* not used */
@@ -342,6 +343,7 @@ long get_reorder(struct iperf_interval_results *irp);
 void print_tcpinfo(struct iperf_test *test);
 void build_tcpinfo_message(struct iperf_interval_results *r, char *message);
 
+void iperf_set_state(struct iperf_test *test, signed char state, const char* dbg);
 int iperf_set_send_state(struct iperf_test *test, signed char state);
 void iperf_check_throttle(struct iperf_stream *sp, struct iperf_time *nowP);
 int iperf_send_mt(struct iperf_stream *) /* __attribute__((hot)) */;

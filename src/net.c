@@ -66,6 +66,7 @@
 #include "iperf_util.h"
 #include "net.h"
 #include "timer.h"
+#include "iperf_api.h"
 
 static int nread_read_timeout = 10;
 static int nread_overall_timeout = 30;
@@ -104,7 +105,7 @@ void nonblock(int s) {
 
 void print_fdset(int max_fd, fd_set* read_set, fd_set* write_set) {
     int i;
-    fprintf(stderr, "read/write FD sets: ");
+    fprintf(stderr, "%llu read/write FD sets: ", getCurMs());
     for (i = 0; i<=max_fd; i++) {
         if (FD_ISSET(i, read_set)) {
             if (FD_ISSET(i, write_set)) {
@@ -292,6 +293,11 @@ netdial(int domain, int proto, const char *local, const char *bind_dev, int loca
     struct addrinfo *server_res = NULL;
     int s, saved_errno;
 
+    if (test->debug) {
+        iperf_err(test, "netdial, domain: %d  proto: %d  local: %s  bind-dev: %s port: %d fd: %d\n",
+                  domain, proto, local, bind_dev, port, s);
+    }
+
     s = create_socket(domain, proto, 0, local, bind_dev, local_port, server, port, &server_res);
     if (s < 0) {
       return -1;
@@ -346,8 +352,8 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     s = socket(res->ai_family, proto, 0);
 
     if (test->debug) {
-        fprintf(stderr, "netannounce, domain: %d  proto: %d  local: %s  bind-dev: %s port: %d fd: %d\n",
-                domain, proto, local, bind_dev, port, s);
+        iperf_err(test, "netannounce, domain: %d  proto: %d  local: %s  bind-dev: %s port: %d fd: %d\n",
+                  domain, proto, local, bind_dev, port, s);
     }
 
     if (s < 0) {
@@ -584,7 +590,7 @@ Nrecv(int fd, char *buf, size_t count, int prot, struct iperf_test *test)
                 break;
             }
             else {
-                fprintf(stderr, "Error in Nread (%s)  fd: %d\n", STRERROR, fd);
+                iperf_err(stderr, "Error in Nread (%s)  fd: %d\n", STRERROR, fd);
                 return NET_HARDERROR;
             }
         } else if (r == 0)
@@ -595,7 +601,7 @@ Nrecv(int fd, char *buf, size_t count, int prot, struct iperf_test *test)
         buf += r;
 
         if (test && test->debug > 1) {
-            fprintf(stderr, "Nread:\n%s", hexdump((const unsigned char*)oldbuf, count - nleft, 1, 1));
+            iperf_err(stderr, "Nread:\n%s", hexdump((const unsigned char*)oldbuf, count - nleft, 1, 1));
         }
 
         /*
@@ -685,7 +691,7 @@ Nwrite(int fd, const char *buf, size_t count, int prot, struct iperf_test *test)
     register size_t nleft = count;
 
     if (test && test->debug > 1) {
-        fprintf(stderr, "Nwrite:\n%s", hexdump((const unsigned char*)buf, count, 1, 1));
+        iperf_err(test, "Nwrite:\n%s", hexdump((const unsigned char*)buf, count, 1, 1));
     }
 
     while (nleft > 0) {

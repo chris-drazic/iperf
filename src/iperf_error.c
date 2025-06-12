@@ -134,13 +134,15 @@ iperf_exit(struct iperf_test *test, int exit_code, const char *format, va_list a
 
 	if (test && test->outfile && test->outfile != stdout) {
 	    if (ct) {
-		fprintf(test->outfile, "%s", ct);
+		    fprintf(test->outfile, "%llu %s iperf3: %s\n",
+                    getCurMs(), iperf_get_state_str(test->state), str);
 	    }
 	    fprintf(test->outfile, "iperf3: %s\n", str);
 	}
 	else {
 	    if (ct) {
-		fprintf(stderr, "%s", ct);
+   	    fprintf(stderr, "%llu %s iperf3: %s\n",
+                getCurMs(), iperf_get_state_str(test->state), str);
 	    }
 	    fprintf(stderr, "iperf3: %s\n", str);
 	}

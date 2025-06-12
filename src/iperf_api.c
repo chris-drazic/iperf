@@ -1925,6 +1925,16 @@ int iperf_open_logfile(struct iperf_test *test)
     return 0;
 }
 
+void iperf_set_state(struct iperf_test *test, signed char state, const char* dbg)
+{
+    if (test->debug) {
+        fprintf(stderr, "test: %p state: %d(%s) ==> %d(%s) dbg: %s\n",
+                test, test->state, iperf_get_state_str(test->state),
+                state, iperf_get_state_str(state), dbg);
+    }
+    test->state = state;
+}
+
 void iperf_close_logfile(struct iperf_test *test)
 {
     if (test->outfile && test->outfile != stdout) {
@@ -1937,7 +1947,7 @@ int
 iperf_set_send_state(struct iperf_test *test, signed char state)
 {
     if (test->ctrl_sck >= 0) {
-        iperf_set_test_state(test, state);
+        iperf_set_state(test, state, __FUNCTION__);
         if (waitWrite(test->ctrl_sck, (char*) &state, sizeof(state), Ptcp, test, ctrl_wait_ms) != sizeof(state)) {
 	    i_errno = IESENDMESSAGE;
 	    return -1;
@@ -2318,6 +2328,7 @@ void _fd_clr(int fd, fd_set* fdset, struct iperf_test *test, const char* file, i
 
 const char* iperf_get_state_str(int s) {
     switch (s) {
+    case TEST_INIT: return "INIT";
     case TEST_START: return "START";
     case TEST_RUNNING: return "RUNNING";
     case TEST_END: return "END";
@@ -3455,7 +3466,7 @@ iperf_reset_test(struct iperf_test *test)
 #if defined(HAVE_CPUSET_SETAFFINITY)
     CPU_ZERO(&test->cpumask);
 #endif /* HAVE_CPUSET_SETAFFINITY */
-    test->state = 0;
+    iperf_set_state(test, TEST_INIT, __FUNCTION__);
 
     test->ctrl_sck = -1;
     test->listener = -1;
@@ -5040,14 +5051,14 @@ iperf_got_sigend(struct iperf_test *test, int sig)
 	test->done = 1;
 	cpu_util(test->cpu_util);
 	test->stats_callback(test);
-	iperf_set_test_state(test, DISPLAY_RESULTS); /* change local state only */
+	iperf_set_state(test, DISPLAY_RESULTS, __FUNCTION__); /* change local state only */
 	if (test->on_test_finish)
 	    test->on_test_finish(test);
 	test->reporter_callback(test);
     }
 
     if (test->ctrl_sck >= 0) {
-	iperf_set_test_state(test, (test->role == 'c') ? CLIENT_TERMINATE : SERVER_TERMINATE);
+	iperf_set_state(test, (test->role == 'c') ? CLIENT_TERMINATE : SERVER_TERMINATE, "got-sig-end");
 	waitWrite(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp, test, ctrl_wait_ms);
     }
     i_errno = (test->role == 'c') ? IECLIENTTERM : IESERVERTERM;

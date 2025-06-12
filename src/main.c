@@ -198,9 +198,12 @@ run(struct iperf_test *test)
                     }
                     iflush(test);
 
-		    if (rc < -1) {
-		        iperf_errexit(test, "exiting");
-		    }
+                    if (rc < -1) {
+                        iperf_errexit(test, "exiting");
+                    }
+                }
+                else {
+                    iperf_err(test, "Finished with iperf_run_srver..");
                 }
                 iperf_reset_test(test);
                 if (iperf_get_test_one_off(test) && rc != 2) {

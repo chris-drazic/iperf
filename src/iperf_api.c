@@ -3470,6 +3470,7 @@ iperf_reset_test(struct iperf_test *test)
 #endif /* HAVE_CPUSET_SETAFFINITY */
     iperf_set_state(test, TEST_INIT, __FUNCTION__);
     test->create_streams_state_at = 0;
+    test->done_at_ms = 0;
     
     test->ctrl_sck = -1;
     test->listener = -1;

@@ -191,6 +191,8 @@ test_timer_proc(TimerClientData client_data, struct iperf_time *nowP)
 {
     struct iperf_test *test = client_data.p;
 
+    if (test->debug)
+        iperf_err(test, "test-timer-proc, setting done.");
     test->timer = NULL;
     test->done = 1;
 }
@@ -237,7 +239,7 @@ create_client_timers(struct iperf_test * test)
     test->timer = test->stats_timer = test->reporter_timer = NULL;
     if (test->duration != 0) {
 	test->done = 0;
-        test->timer = tmr_create(&now, test_timer_proc, cd, ( test->duration + test->omit ) * SEC_TO_US, 0);
+        test->timer = tmr_create(&now, test_timer_proc, cd, ( test->duration + test->omit) * SEC_TO_US, 0);
         if (test->timer == NULL) {
             i_errno = IEINITTEST;
             return -1;
@@ -801,6 +803,7 @@ iperf_run_client(struct iperf_test * test)
                 }
 
 		/* Yes, done!  Send TEST_END. */
+                iperf_err(test, "test is done");
 		test->done = 1;
 		cpu_util(test->cpu_util);
 		test->stats_callback(test);

@@ -517,6 +517,22 @@ iperf 3.8 2020-06-08
 
   * Various compiler errors and warnings have been fixed.
 
+iperf 3.7-CT:  Changes from upstream iperf3
+--------------------------------------------
+
+  * Make sockets non-blocking to fix various ways the client and server can hang.
+
+  * Server will recover from client doing bad things or dying unexpectedly.
+
+  * Fix socket leaks
+
+  * Report summary stats in all cases on both client and server.
+
+  * Allow compiling for win32 using mingw cross-compiler.
+
+  * Add lots of optionally-enabled debugging to help understand what is going on when
+    adding new features or debugging problems.
+
 iperf 3.7 2019-06-21
 --------------------
 

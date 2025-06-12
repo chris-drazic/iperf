@@ -520,6 +520,8 @@ iperf 3.8 2020-06-08
 iperf 3.7-CT:  Changes from upstream iperf3
 --------------------------------------------
 
+  * Support SO_BINDTODEVICE
+
   * Make sockets non-blocking to fix various ways the client and server can hang.
 
   * Server will recover from client doing bad things or dying unexpectedly.

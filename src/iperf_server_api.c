@@ -145,6 +145,7 @@ iperf_server_listen(struct iperf_test *test)
 	        iflush(test);
         }
     }
+    setnonblocking(test->listener, 1);
 
     FD_ZERO(&test->read_set);
     FD_ZERO(&test->write_set);
@@ -156,7 +157,7 @@ iperf_server_listen(struct iperf_test *test)
 int
 iperf_accept(struct iperf_test *test)
 {
-    int s;
+    int s = -1;
     int ret = -1;
     signed char rbuf = ACCESS_DENIED;
     socklen_t len;
@@ -197,15 +198,15 @@ iperf_accept(struct iperf_test *test)
         if (iperf_set_control_keepalive(test) < 0)
             return -1;
 #endif //HAVE_TCP_KEEPALIVE
-            int rv = Nread(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp, test);
-        if (rv < 0) {
+            int rv = waitRead(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp, test, ctrl_wait_ms);
+        if (rv != COOKIE_SIZE) {
             /*
              * Note this error covers both the case of a system error
              * or the inability to read the correct amount of data
              * (i.e. timed out).
              */
-            fprintf(stderr, "Accept problem, ctrl-sck: %d  s: %d  listener: %d Nread rv: %d\n",
-+                    test->ctrl_sck, s, test->listener, rv);
+            fprintf(stderr, "Accept problem, ctrl-sck: %d  s: %d  listener: %d waitRead rv: %d\n",
+                    test->ctrl_sck, s, test->listener, rv);
             i_errno = IERECVCOOKIE;
             goto error_handling;
         }
@@ -229,9 +230,8 @@ iperf_accept(struct iperf_test *test)
          * Also, if sending failed, don't return an error, as the request is not related
          * to the ongoing test, and returning an error will terminate the test.
          */
-        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test) < 0) {
+        if (waitWrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test, ctrl_wait_ms) != sizeof(rbuf)) {
             i_errno = IESENDMESSAGE;
-            closesocket(s);
             if (test->debug)
                 printf("failed to send ACCESS_DENIED to an unsolicited connection request during active test\n");
             goto error_handling;
@@ -243,8 +243,12 @@ iperf_accept(struct iperf_test *test)
     }
     return 0;
     error_handling:
+    if (s >= 0) {
         closesocket(s);
-        return ret;
+        if (test->ctrl_sck == s)
+            test->ctrl_sck = -1;
+    }
+    return ret;
 }
 
 
@@ -260,7 +264,7 @@ iperf_handle_message_server(struct iperf_test *test)
     }
 
     // XXX: Need to rethink how this behaves to fit API
-    if ((rval = Nread(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp, test)) <= 0) {
+    if ((rval = waitRead(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp, test, ctrl_wait_ms)) != sizeof(signed char)) {
         if (rval == 0) {
             iperf_err(test, "the client has unexpectedly closed the connection");
             i_errno = IECTRLCLOSE;
@@ -505,16 +509,16 @@ cleanup_server(struct iperf_test *test)
     }
 
     /* Close open test sockets */
-    if (test->ctrl_sck > -1) {
-	closesocket(test->ctrl_sck);
+    if (test->ctrl_sck != -1) {
+	    closesocket(test->ctrl_sck);
         test->ctrl_sck = -1;
     }
-    if (test->listener > -1) {
-	closesocket(test->listener);
+    if (test->listener != -1) {
+	    closesocket(test->listener);
         test->listener = -1;
     }
-    if (test->prot_listener > -1) {     // May remain open if create socket failed
-	closesocket(test->prot_listener);
+    if (test->prot_listener != -1) {     // May remain open if create socket failed
+	    closesocket(test->prot_listener);
         test->prot_listener = -1;
     }
 
@@ -768,6 +772,10 @@ iperf_run_server(struct iperf_test *test)
 			            cleanup_server(test);
                         return -1;
 		    }
+            /* Use non-blocking IO so we don't accidentally end up
+            * hanging on socket operations. */
+            setnonblocking(s, 1);
+            
             if (test->debug) {
                 fprintf(stderr, "create-streams, accepted socket: %d\n", s);
             }
@@ -900,6 +908,9 @@ iperf_run_server(struct iperf_test *test)
                                 i_errno = IELISTEN;
                                 return -1;
                             }
+
+                            setnonblocking(s, 1);
+
                             test->listener = s;
                             IFD_SET(test->listener, &test->read_set, test);
                         }

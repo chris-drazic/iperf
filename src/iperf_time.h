@@ -62,6 +62,8 @@ int iperf_time_diff(struct iperf_time *time1, struct iperf_time *time2, struct i
 
 uint64_t iperf_time_in_usecs(struct iperf_time *time);
 
+uint64_t getCurMs();
+
 /**
  * Returns the time in seconds as double type with a microsecond granularity.
  */

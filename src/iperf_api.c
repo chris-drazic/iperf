@@ -1938,7 +1938,7 @@ iperf_set_send_state(struct iperf_test *test, signed char state)
 {
     if (test->ctrl_sck >= 0) {
         iperf_set_test_state(test, state);
-        if (Nwrite(test->ctrl_sck, (char*) &state, sizeof(state), Ptcp, test) < 0) {
+        if (waitWrite(test->ctrl_sck, (char*) &state, sizeof(state), Ptcp, test, ctrl_wait_ms) != sizeof(state)) {
 	    i_errno = IESENDMESSAGE;
 	    return -1;
         }
@@ -2255,12 +2255,12 @@ iperf_exchange_parameters(struct iperf_test *test)
                 return -1;
             i_errno = IEAUTHTEST;
             err = htonl(i_errno);
-            if (Nwrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test) < 0) {
+            if (waitWrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test, ctrl_wait_ms) != sizeof(err)) {
                 i_errno = IECTRLWRITE;
                 return -1;
             }
             err = htonl(errno);
-            if (Nwrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test) < 0) {
+            if (waitWrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test, ctrl_wait_ms) != sizeof(err)) {
                 i_errno = IECTRLWRITE;
                 return -1;
             }
@@ -2272,12 +2272,12 @@ iperf_exchange_parameters(struct iperf_test *test)
 	        if (iperf_set_send_state(test, SERVER_ERROR) != 0)
                 return -1;
             err = htonl(i_errno);
-            if (Nwrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test) < 0) {
+            if (waitWrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test, ctrl_wait_ms) != sizeof(err)) {
                 i_errno = IECTRLWRITE;
                 return -1;
             }
             err = htonl(errno);
-            if (Nwrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test) < 0) {
+            if (waitWrite(test->ctrl_sck, (char*) &err, sizeof(err), Ptcp, test, ctrl_wait_ms) != sizeof(err)) {
                 i_errno = IECTRLWRITE;
                 return -1;
             }
@@ -2887,10 +2887,10 @@ JSON_write(int fd, cJSON *json, struct iperf_test *test)
     else {
 	hsize = strlen(str);
 	nsize = htonl(hsize);
-	if (Nwrite(fd, (char*) &nsize, sizeof(nsize), Ptcp, test) < 0)
+	if (waitWrite(fd, (char*) &nsize, sizeof(nsize), Ptcp, test, ctrl_wait_ms) < 0)
 	    r = -1;
 	else {
-	    if (Nwrite(fd, str, hsize, Ptcp, test) < 0)
+	    if (waitWrite(fd, str, hsize, Ptcp, test, ctrl_wait_ms) != hsize)
 		r = -1;
 	}
 	cJSON_free(str);
@@ -2915,7 +2915,7 @@ JSON_read(int fd, int max_size, struct iperf_stream *sp)
      * Then read the JSON into a buffer and parse it.  Return a parsed JSON
      * structure, NULL if there was an error.
      */
-    rc = Nread(fd, (char*) &nsize, sizeof(nsize), Ptcp, sp->test);
+    rc = waitRead(fd, str, hsize, Ptcp, sp->test, ctrl_wait_ms);
     if (rc == sizeof(nsize)) {
         hsize = ntohl(nsize);
         if (hsize > 0 && (max_size == 0 || hsize <= max_size)) {
@@ -2924,7 +2924,7 @@ JSON_read(int fd, int max_size, struct iperf_stream *sp)
 	    if (strsize) {
 	        str = (char *) calloc(sizeof(char), strsize);
 	        if (str != NULL) {
-	            rc = Nread(fd, str, hsize, Ptcp, sp->test);
+	            rc = waitRead(fd, str, hsize, Ptcp, sp->test, ctrl_wait_ms);
 	            if (rc >= 0) {
                         /*
                         * We should be reading in the number of bytes corresponding to the
@@ -2941,7 +2941,7 @@ JSON_read(int fd, int max_size, struct iperf_stream *sp)
                         }
 	            }
                     else {
-                        snprintf(msg_buf, sizeof(msg_buf), "JSON data read failed; errno=%d", errno);
+                        snprintf(msg_buf, sizeof(msg_buf), "WARNING:  Error waiting for json read, hsize: %d, errno: %s", hsize, STRERROR);
                         warning(msg_buf);
                     }
 	            free(str);
@@ -5048,7 +5048,7 @@ iperf_got_sigend(struct iperf_test *test, int sig)
 
     if (test->ctrl_sck >= 0) {
 	iperf_set_test_state(test, (test->role == 'c') ? CLIENT_TERMINATE : SERVER_TERMINATE);
-	(void) Nwrite(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp, test);
+	waitWrite(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp, test, ctrl_wait_ms);
     }
     i_errno = (test->role == 'c') ? IECLIENTTERM : IESERVERTERM;
 

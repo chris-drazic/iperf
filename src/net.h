@@ -27,6 +27,10 @@
 #ifndef __NET_H
 #define __NET_H
 
+extern int ctrl_wait_ms;
+
+int eWouldBlock();
+
 void nonblock(int s);
 
 void print_fdset(int max_fd, fd_set* read_set, fd_set* write_set);
@@ -36,7 +40,10 @@ int create_socket(int domain, int type, int proto, const char *local, const char
 int netdial(int domain, int proto, const char *local, const char *bind_dev, int local_port, const char *server, int port, int timeout,
             struct iperf_test *test);
 int netannounce(int domain, int proto, const char *local, const char *bind_dev, int port, struct iperf_test *test);
+int waitSocketReadable(int fd, int wait_for_ms);
+int waitRead(int fd, char *buf, size_t count, int prot, struct iperf_test *test, int timeout_ms);
 int Nread(int fd, char *buf, size_t count, int prot, struct iperf_test *test);
+int waitWrite(int fd, char *buf, size_t count, int prot, struct iperf_test *test, int timeout_ms);
 int Nrecv(int fd, char *buf, size_t count, int prot, struct iperf_test *test);
 int Nread_no_select(int fd, char *buf, size_t count, int prot);
 int Nrecv_no_select(int fd, char *buf, size_t count, int prot, int sock_opt);

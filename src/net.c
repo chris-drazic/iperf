@@ -77,6 +77,9 @@ static int nread_overall_timeout = 30;
  */
 extern int gerror;
 
+int ctrl_wait_ms = 5000;
+
+
 #ifdef __WIN32__
 
 void nonblock(int s) {
@@ -121,6 +124,7 @@ void print_fdset(int max_fd, fd_set* read_set, fd_set* write_set) {
 /*
  * timeout_connect adapted from netcat, via OpenBSD and FreeBSD
  * Copyright (c) 2001 Eric Jackson <ericj@monkey.org>
+ * Now it assumes non-blocking socket passed in.
  */
 int
 timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
@@ -131,14 +135,8 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
 	int ret;
 
 	flags = 0;
-	if (timeout != -1) {
-#ifndef __WIN32__
-           flags = fcntl(s, F_GETFL, 0);
-#endif
-           nonblock(s);
-	}
 
-	if ((ret = connect(s, name, namelen)) != 0 && errno == EINPROGRESS) {
+	if ((ret = connect(s, name, namelen)) != 0 && eWouldBlock()) {
 #ifndef __WIN32__
                 struct pollfd pfd;
 		pfd.fd = s;
@@ -154,9 +152,8 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
                 tv.tv_sec = timeout / 1000;                  //The second portion of the struct
                 tv.tv_usec = (timeout % 1000) * 1000;        //The microsecond portion of the struct
 
-                //DEBUG: This is ALWAYS 1
-                int select_ret = select(s + 1, NULL, &write_fds, NULL, &tv);
-                if (select_ret == 1)
+                int ret = select(s + 1, NULL, &write_fds, NULL, &tv);
+                if (ret == 1)
 #endif
                 {
 			optlen = sizeof(optval);
@@ -171,20 +168,13 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
 		} else
 			ret = -1;
 	}
-
-	if (timeout != -1) {
-#ifndef __WIN32__
-           fcntl(s, F_SETFL, flags);
-#endif
-           /* TODO:  Implement this for Windows? */
-        }
-
 	return (ret);
 }
 
 /* netdial and netannouce code comes from libtask: http://swtch.com/libtask/
  * Copyright: http://swtch.com/libtask/COPYRIGHT
-*/
+ * Returns non-blocking socket.
+ */
 
 /* create a socket */
 int
@@ -307,11 +297,11 @@ netdial(int domain, int proto, const char *local, const char *bind_dev, int loca
       return -1;
     }
 
-    if (timeout_connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen, timeout) < 0 && errno != EINPROGRESS) {
-	saved_errno = errno;
-	closesocket(s);
-	freeaddrinfo(server_res);
-	errno = saved_errno;
+    if (timeout_connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen, timeout) < 0 && !eWouldBlock()) {
+        saved_errno = errno;
+        closesocket(s);
+        freeaddrinfo(server_res);
+        errno = saved_errno;
         return -1;
     }
 
@@ -435,6 +425,104 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     return s;
 }
 
+int waitRead(int fd, char *buf, size_t count, int prot, struct iperf_test *test, int timeout_ms)
+{
+    int sofar = 0;
+    uint64_t timeout_at = getCurMs();
+    fd_set read_fds;
+    struct timeval tv;
+    uint64_t now, sleep_for;
+    int select_ret;
+
+    while (1) {
+        int r = Nread(fd, buf + sofar, count - sofar, prot, test);
+        if (r < 0) {
+            if (sofar == 0)
+                return r;
+            return sofar;
+        }
+        sofar = r;
+        if (sofar == count)
+            return sofar;
+        now = getCurMs();
+        if (now >= timeout_at)
+            return sofar;
+
+        /* not done, call select with timout so we don't busy-spin */
+        sleep_for = timeout_at - now;
+        
+        FD_ZERO(&read_fds);
+        FD_SET(fd, &read_fds);
+
+        tv.tv_sec = sleep_for / 1000;
+        tv.tv_usec = (sleep_for % 1000) * 1000;
+
+        select_ret = select(fd + 1, &read_fds, NULL, NULL, &tv);
+        if (select_ret <= 0)
+            return sofar;
+    }
+}
+
+int waitSocketReadable(int fd, int wait_for_ms) {
+    fd_set read_fds;
+    struct timeval tv;
+
+    FD_ZERO(&read_fds);
+    FD_SET(fd, &read_fds);
+
+    tv.tv_sec = wait_for_ms / 1000;
+    tv.tv_usec = (wait_for_ms % 1000) * 1000;
+
+    return select(fd + 1, &read_fds, NULL, NULL, &tv);
+}
+
+int waitWrite(int fd, char *buf, size_t count, int prot, struct iperf_test *test, int timeout_ms)
+{
+    int sofar = 0;
+    uint64_t timeout_at = getCurMs() + timeout_ms;
+    fd_set write_fds;
+    struct timeval tv;
+    uint64_t now, sleep_for;
+    int select_ret;
+
+    while (1) {
+        int r = Nwrite(fd, buf + sofar, count - sofar, prot, test);
+        if (r < 0) {
+            if (sofar == 0)
+                return r;
+            return sofar;
+        }
+        sofar += r;
+        if (sofar == count)
+            return sofar;
+        now = getCurMs();
+        if (now >= timeout_at)
+            return sofar;
+
+        /* not done, call select with timout so we don't busy-spin */
+        sleep_for = timeout_at - now;
+        
+        FD_ZERO(&write_fds);
+        FD_SET(fd, &write_fds);
+
+        tv.tv_sec = sleep_for / 1000;
+        tv.tv_usec = (sleep_for % 1000) * 1000;
+
+        select_ret = select(fd + 1, NULL, &write_fds, NULL, &tv);
+        if (select_ret <= 0)
+            return sofar;
+    }
+}
+
+int eWouldBlock() {
+#ifndef __WIN32__
+    return (errno == EINPROGRESS || errno == EAGAIN);
+#else
+    return WSAGetLastError() == WSAEWOULDBLOCK;
+#endif
+}
+
+
 /*******************************************************************/
 /* Nread - reads 'count' bytes from a socket  */
 /********************************************************************/
@@ -446,7 +534,7 @@ Nread(int fd, char *buf, size_t count, int prot, struct iperf_test *test)
 }
 
 /*******************************************************************/
-/* Nrecv - reads 'count' bytes from a socket  */
+/* Nrecv - reads up to 'count' bytes from a socket   */
 /********************************************************************/
 
 int
@@ -491,14 +579,8 @@ Nrecv(int fd, char *buf, size_t count, int prot, struct iperf_test *test)
 #else
             r = recv(fd, buf, nleft, 0);
 #endif
-        if (r < 0) {
-#ifndef __WIN32__
-            /* XXX EWOULDBLOCK can't happen without non-blocking sockets */
-            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
-#else
-            if (WSAGetLastError() == WSAEWOULDBLOCK)
-#endif      
-            {
+        if (r < 0) {    
+            if (eWouldBlock() || errno == EINTR) {
                 break;
             }
             else {

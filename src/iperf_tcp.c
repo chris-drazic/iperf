@@ -135,7 +135,13 @@ iperf_tcp_accept(struct iperf_test * test)
     struct sockaddr_storage addr;
 
     len = sizeof(addr);
+
+    /* Wait a bit until the peer attempts a connection */
+    waitSocketReadable(test->listener, ctrl_wait_ms);
+
+
     if ((s = accept(test->listener, (struct sockaddr *) &addr, &len)) < 0) {
+        fprintf(stderr, "tcp-accept, accept failed: %s\n", STRERROR);
         i_errno = IESTREAMCONNECT;
         return -1;
     }
@@ -156,14 +162,14 @@ iperf_tcp_accept(struct iperf_test * test)
     }
 #endif /* HAVE_SO_MAX_PACING_RATE */
 
-    if (Nread(s, cookie, COOKIE_SIZE, Ptcp, test) < 0) {
+    if (waitRead(s, cookie, COOKIE_SIZE, Ptcp, test, ctrl_wait_ms) != COOKIE_SIZE) {
         i_errno = IERECVCOOKIE;
         closesocket(s);
         return -1;
     }
 
     if (strncmp(test->cookie, cookie, COOKIE_SIZE) != 0) {
-        if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test) < 0) {
+        if (waitWrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test, ctrl_wait_ms) != sizeof(rbuf)) {
             iperf_err(test, "failed to send access denied from busy server to new connecting client, errno = %d\n", errno);
             i_errno = IESENDMESSAGE;
         }
@@ -178,6 +184,7 @@ iperf_tcp_accept(struct iperf_test * test)
 /* iperf_tcp_listen
  *
  * start up a listener for TCP stream connections
+ * Returns non-blocking socket.
  */
 int
 iperf_tcp_listen(struct iperf_test *test)
@@ -224,9 +231,12 @@ iperf_tcp_listen(struct iperf_test *test)
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_flags = AI_PASSIVE;
         if ((gerror = getaddrinfo(test->bind_address, portstr, &hints, &res)) != 0) {
+            fprintf(stderr, "tcp-listen, getaddrinfo failed: %s\n", STRERROR);
             i_errno = IESTREAMLISTEN;
             return -1;
         }
+
+        setnonblocking(s, 1);
 
 #if defined(HAVE_IPPROTO_MPTCP)
         if (test->mptcp)
@@ -234,7 +244,8 @@ iperf_tcp_listen(struct iperf_test *test)
 #endif
 
         if ((s = socket(res->ai_family, SOCK_STREAM, proto)) < 0) {
-	    freeaddrinfo(res);
+            fprintf(stderr, "tcp-listen, socket() failed: %s\n", STRERROR);
+	        freeaddrinfo(res);
             i_errno = IESTREAMLISTEN;
             return -1;
         }
@@ -323,10 +334,11 @@ iperf_tcp_listen(struct iperf_test *test)
 #endif /* IPV6_V6ONLY */
 
         if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
-	    saved_errno = errno;
+            fprintf(stderr, "tcp-listen, bind2() failed: %s\n", STRERROR);
+	        saved_errno = errno;
             closesocket(s);
-	    freeaddrinfo(res);
-	    errno = saved_errno;
+            freeaddrinfo(res);
+	        errno = saved_errno;
             i_errno = IESTREAMLISTEN;
             return -1;
         }
@@ -399,6 +411,7 @@ iperf_tcp_listen(struct iperf_test *test)
  * This function is roughly similar to netdial(), and may indeed have
  * been derived from it at some point, but it sets many TCP-specific
  * options between socket creation and connection.
+ * Returns non-blocking socket
  */
 int
 iperf_tcp_connect(struct iperf_test *test)
@@ -417,18 +430,19 @@ iperf_tcp_connect(struct iperf_test *test)
 
     s = create_socket(test->settings->domain, SOCK_STREAM, proto, test->bind_address, test->bind_dev, test->bind_port, test->server_hostname, test->server_port, &server_res);
     if (s < 0) {
-	i_errno = IESTREAMCONNECT;
-	return -1;
+        fprintf(stderr, "tcp-connect, create_socket failed: %s\n", STRERROR);
+        i_errno = IESTREAMCONNECT;
+        return -1;
     }
 
     /* Set socket options */
     if (test->no_delay) {
         opt = 1;
         if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt)) < 0) {
-	    saved_errno = errno;
-	    closesocket(s);
-	    freeaddrinfo(server_res);
-	    errno = saved_errno;
+            saved_errno = errno;
+            closesocket(s);
+            freeaddrinfo(server_res);
+            errno = saved_errno;
             i_errno = IESETNODELAY;
             return -1;
         }
@@ -606,10 +620,11 @@ iperf_tcp_connect(struct iperf_test *test)
     iperf_common_sockopts(test, s);
 
     if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
-	saved_errno = errno;
-	closesocket(s);
-	freeaddrinfo(server_res);
-	errno = saved_errno;
+        fprintf(stderr, "tcp-connect, connect() failed: %s\n", STRERROR);
+        saved_errno = errno;
+        closesocket(s);
+        freeaddrinfo(server_res);
+        errno = saved_errno;
         i_errno = IESTREAMCONNECT;
         return -1;
     }
@@ -617,7 +632,7 @@ iperf_tcp_connect(struct iperf_test *test)
     freeaddrinfo(server_res);
 
     /* Send cookie for verification */
-    if (Nwrite(s, test->cookie, COOKIE_SIZE, Ptcp, test) < 0) {
+    if (waitWrite(s, test->cookie, COOKIE_SIZE, Ptcp, test, ctrl_wait_ms) != COOKIE_SIZE) {
 	saved_errno = errno;
 	closesocket(s);
 	errno = saved_errno;

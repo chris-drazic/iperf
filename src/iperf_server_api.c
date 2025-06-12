@@ -250,15 +250,15 @@ iperf_handle_message_server(struct iperf_test *test)
     struct iperf_stream *sp;
     signed char s;
 
-    if (test->debug_level >= DEBUG_LEVEL_INFO) {
-        iperf_err(test, "Reading new State from the Client - current state is %d-%s\n", test->state, state_to_text(test->state));
-    }
+    // if (test->debug) {
+    //     iperf_err(test, "Reading new State from the Client - current state is %d-%s\n", test->state, state_to_text(test->state));
+    // }
 
     // XXX: Need to rethink how this behaves to fit API
     if ((rval = waitRead(test->ctrl_sck, (char*) &s, sizeof(s), Ptcp, test, ctrl_wait_ms)) != sizeof(s)) {
         iperf_err(test, "The client has unexpectedly closed the connection (handle-message-server): %s  rval: %d",
                   STRERROR, rval);
-        if (rval == 0) {
+        if (rval == 0 || (rval == NET_HANGUP)) {
             i_errno = IECTRLCLOSE;
             return -1;
         } else {

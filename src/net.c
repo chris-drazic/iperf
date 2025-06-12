@@ -461,7 +461,14 @@ int waitRead(int fd, char *buf, size_t count, int prot, struct iperf_test *test,
     int select_ret;
 
     while (1) {
-        int r = Nread(fd, buf + sofar, count - sofar, prot, test);
+        int r;
+        
+        if (test->debug > 1)
+            iperf_err(test, "waitRead, calling Nread, fd: %d count: %d  sofar: %d", fd, count, sofar);
+        r = Nread(fd, buf + sofar, count - sofar, prot, test);
+        if (test->debug > 1)
+            iperf_err(test, "waitRead, Nread, fd: %d count: %d  sofar: %d rv: %d",
+                      fd, count, sofar, r);
         if (r < 0) {
             if (sofar == 0)
                 return r;
@@ -484,6 +491,9 @@ int waitRead(int fd, char *buf, size_t count, int prot, struct iperf_test *test,
         tv.tv_usec = (sleep_for % 1000) * 1000;
 
         select_ret = select(fd + 1, &read_fds, NULL, NULL, &tv);
+        if (test->debug > 1)
+            iperf_err(test, "waitRead, done with select, fd: %d count: %d  sofar: %d select-ret: %d",
+                      fd, count, sofar, select_ret);
         if (select_ret <= 0)
             return sofar;
     }
@@ -613,8 +623,16 @@ Nrecv(int fd, char *buf, size_t count, int prot, struct iperf_test *test)
                 iperf_err(stderr, "Error in Nread (%s)  fd: %d\n", STRERROR, fd);
                 return NET_HARDERROR;
             }
-        } else if (r == 0)
-            break;
+        } else if (r == 0) {
+            // End of socket has happened
+            if (buf != oldbuf) {
+                // We read something first, though, report it as successful read
+                break;
+            }
+            else {
+                return NET_HANGUP;
+            }
+        }
 
         total += r;
         nleft -= r; 

@@ -205,6 +205,7 @@ run(struct iperf_test *test)
                 else {
                     iperf_err(test, "Finished with iperf_run_srver..");
                 }
+                cleanup_server(test);
                 iperf_reset_test(test);
                 if (iperf_get_test_one_off(test) && rc != 2) {
 		    /* Authentication failure doesn't count for 1-off test */

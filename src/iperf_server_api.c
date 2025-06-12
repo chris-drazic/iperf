@@ -198,6 +198,8 @@ iperf_accept(struct iperf_test *test)
         if (iperf_set_control_keepalive(test) < 0)
             return -1;
 #endif //HAVE_TCP_KEEPALIVE
+            setnonblocking(s, 1);
+
             int rv = waitRead(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp, test, ctrl_wait_ms);
         if (rv != COOKIE_SIZE) {
             /*
@@ -226,28 +228,16 @@ iperf_accept(struct iperf_test *test)
     } else {
         /*
          * Don't try to read from the socket.  It could block an ongoing test.
-         * Just send ACCESS_DENIED.
+         * Just send ACCESS_DENIED, ignore any error, don't care if we cannot send the bytes immediately.
          * Also, if sending failed, don't return an error, as the request is not related
          * to the ongoing test, and returning an error will terminate the test.
          */
-        if (waitWrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test, ctrl_wait_ms) != sizeof(rbuf)) {
-            i_errno = IESENDMESSAGE;
-            if (test->debug)
-                printf("failed to send ACCESS_DENIED to an unsolicited connection request during active test\n");
-            goto error_handling;
-        } else {
-            if (test->debug)
-                printf("successfully sent ACCESS_DENIED to an unsolicited connection request during active test\n");
-        }
-        closesocket(s);
+        Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp, test);
+        iclosesocket(s, test);
     }
     return 0;
     error_handling:
-    if (s >= 0) {
-        closesocket(s);
-        if (test->ctrl_sck == s)
-            test->ctrl_sck = -1;
-    }
+    iclosesocket(s, test);
     return ret;
 }
 
@@ -261,13 +251,13 @@ iperf_handle_message_server(struct iperf_test *test)
     signed char s;
 
     if (test->debug_level >= DEBUG_LEVEL_INFO) {
-        iperf_printf(test, "Reading new State from the Client - current state is %d-%s\n", test->state, state_to_text(test->state));
+        iperf_err(test, "Reading new State from the Client - current state is %d-%s\n", test->state, state_to_text(test->state));
     }
 
     // XXX: Need to rethink how this behaves to fit API
     if ((rval = waitRead(test->ctrl_sck, (char*) &s, sizeof(s), Ptcp, test, ctrl_wait_ms)) != sizeof(s)) {
-        iperf_err(test, "The client has unexpectedly closed the connection (handle-message-server): %s",
-                  STRERROR);
+        iperf_err(test, "The client has unexpectedly closed the connection (handle-message-server): %s  rval: %d",
+                  STRERROR, rval);
         if (rval == 0) {
             i_errno = IECTRLCLOSE;
             return -1;
@@ -292,9 +282,7 @@ iperf_handle_message_server(struct iperf_test *test)
             cpu_util(test->cpu_util);
             test->stats_callback(test);
             SLIST_FOREACH(sp, &test->streams, streams) {
-                IFD_CLR(sp->socket, &test->read_set, test);
-                IFD_CLR(sp->socket, &test->write_set, test);
-                closesocket(sp->socket);
+                iclosesocket(sp->socket, test);
                 sp->socket = -1;
             }
             test->reporter_callback(test);
@@ -323,9 +311,7 @@ iperf_handle_message_server(struct iperf_test *test)
             // XXX: Remove this line below!
 	    iperf_err(test, "the client has terminated");
             SLIST_FOREACH(sp, &test->streams, streams) {
-                IFD_CLR(sp->socket, &test->read_set, test);
-                IFD_CLR(sp->socket, &test->write_set, test);
-                closesocket(sp->socket);
+                iclosesocket(sp->socket, test);
                 sp->socket = -1;
             }
             iperf_set_state(test, IPERF_DONE, __FUNCTION__);
@@ -352,11 +338,10 @@ server_timer_proc(TimerClientData client_data, struct iperf_time *nowP)
     while (!SLIST_EMPTY(&test->streams)) {
         sp = SLIST_FIRST(&test->streams);
         SLIST_REMOVE_HEAD(&test->streams, streams);
-        closesocket(sp->socket);
+        iclosesocket(sp->socket, test);
         iperf_free_stream(sp);
     }
-    closesocket(test->ctrl_sck);
-    test->ctrl_sck = -1;
+    iclosesocket(test->ctrl_sck, test);
 }
 
 static void
@@ -513,35 +498,29 @@ cleanup_server(struct iperf_test *test)
     }
 
     /* Close open test sockets */
-    if (test->ctrl_sck != -1) {
-	    closesocket(test->ctrl_sck);
-        test->ctrl_sck = -1;
-    }
-    if (test->listener != -1) {
-	    closesocket(test->listener);
-        test->listener = -1;
-    }
+    iclosesocket(test->ctrl_sck, test);
+    iclosesocket(test->listener, test);
     if (test->prot_listener != -1) {     // May remain open if create socket failed
-	    closesocket(test->prot_listener);
+	    iclosesocket(test->prot_listener, test);
         test->prot_listener = -1;
     }
 
     /* Cancel any remaining timers. */
     if (test->stats_timer != NULL) {
-	tmr_cancel(test->stats_timer);
-	test->stats_timer = NULL;
+        tmr_cancel(test->stats_timer);
+        test->stats_timer = NULL;
     }
     if (test->reporter_timer != NULL) {
-	tmr_cancel(test->reporter_timer);
-	test->reporter_timer = NULL;
+        tmr_cancel(test->reporter_timer);
+        test->reporter_timer = NULL;
     }
     if (test->omit_timer != NULL) {
-	tmr_cancel(test->omit_timer);
-	test->omit_timer = NULL;
+        tmr_cancel(test->omit_timer);
+        test->omit_timer = NULL;
     }
     if (test->congestion_used != NULL) {
         free(test->congestion_used);
-	test->congestion_used = NULL;
+	    test->congestion_used = NULL;
     }
     if (test->timer != NULL) {
         tmr_cancel(test->timer);
@@ -560,7 +539,7 @@ iperf_run_server(struct iperf_test *test)
 #if defined(HAVE_TCP_CONGESTION)
     int saved_errno;
 #endif /* HAVE_TCP_CONGESTION */
-    fd_set read_set, write_set, exc_set;
+    fd_set read_set, write_set;
     struct iperf_stream *sp;
     struct iperf_time now;
     struct iperf_time last_receive_time;
@@ -827,7 +806,7 @@ iperf_run_server(struct iperf_test *test)
 				}
 				else {
 				    saved_errno = errno;
-				    closesocket(s);
+				    iclosesocket(s, test);
 				    cleanup_server(test);
 				    errno = saved_errno;
 				    i_errno = IESETCONGESTION;
@@ -842,7 +821,7 @@ iperf_run_server(struct iperf_test *test)
 			    rc = getsockopt(s, IPPROTO_TCP, TCP_CONGESTION, ca, &len);
                             if (rc < 0 && test->congestion) {
 				saved_errno = errno;
-				closesocket(s);
+				iclosesocket(s, test);
 				cleanup_server(test);
 				errno = saved_errno;
 				i_errno = IESETCONGESTION;
@@ -898,17 +877,13 @@ iperf_run_server(struct iperf_test *test)
                 if (rec_streams_accepted == streams_to_rec && send_streams_accepted == streams_to_send) {
                     if (test->protocol->id != Ptcp) {
                         // Stop listening for more protocol connections, we are full.
-                        IFD_CLR(test->prot_listener, &test->read_set, test);
-                        closesocket(test->prot_listener);
-                        test->prot_listener = -1;
+                        iclosesocket(test->prot_listener, test);
                     } else {
                         if (test->no_delay || test->settings->mss || test->settings->socket_bufsize) {
                             // Re-open protocol listener socket, I am not sure why. --Ben
-                            IFD_CLR(test->listener, &test->read_set, test);
-                            closesocket(test->listener);
-			    test->listener = -1;
+                            iclosesocket(test->prot_listener, test);
                             if ((s = netannounce(test->settings->domain, Ptcp, test->bind_address, test->bind_dev, test->server_port, test)) < 0) {
-				cleanup_server(test);
+				                cleanup_server(test);
                                 i_errno = IELISTEN;
                                 return -1;
                             }

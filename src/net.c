@@ -179,7 +179,7 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
 
 /* create a socket */
 int
-create_socket(int domain, int type, int proto, const char *local, const char *bind_dev, int local_port, const char *server, int port, struct addrinfo **server_res_out)
+create_socket(int domain, int type, int proto, const char *local, const char *bind_dev, int local_port, const char *server, int port, struct iperf_test *test, struct addrinfo **server_res_out)
 {
     struct addrinfo hints, *local_res = NULL, *server_res = NULL;
     int s, saved_errno;
@@ -218,7 +218,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 #endif // HAVE_SO_BINDTODEVICE
         {
             saved_errno = errno;
-            closesocket(s);
+            iclosesocket(s, test);
             freeaddrinfo(local_res);
             freeaddrinfo(server_res);
             errno = saved_errno;
@@ -235,11 +235,11 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
         }
 
         if (bind(s, (struct sockaddr *) local_res->ai_addr, local_res->ai_addrlen) < 0) {
-	    saved_errno = errno;
-	    closesocket(s);
-	    freeaddrinfo(local_res);
-	    freeaddrinfo(server_res);
-	    errno = saved_errno;
+            saved_errno = errno;
+            iclosesocket(s, test);
+            freeaddrinfo(local_res);
+            freeaddrinfo(server_res);
+            errno = saved_errno;
             return -1;
 	}
         freeaddrinfo(local_res);
@@ -267,7 +267,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 	}
 	/* Unknown protocol */
 	else {
-	    closesocket(s);
+	    iclosesocket(s, test);
 	    freeaddrinfo(server_res);
 	    errno = EAFNOSUPPORT;
             return -1;
@@ -275,7 +275,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 
         if (bind(s, (struct sockaddr *) &lcl, addrlen) < 0) {
 	    saved_errno = errno;
-	    closesocket(s);
+	    iclosesocket(s, test);
 	    freeaddrinfo(server_res);
 	    errno = saved_errno;
             return -1;
@@ -298,14 +298,14 @@ netdial(int domain, int proto, const char *local, const char *bind_dev, int loca
                   domain, proto, local, bind_dev, port, s);
     }
 
-    s = create_socket(domain, proto, 0, local, bind_dev, local_port, server, port, &server_res);
+    s = create_socket(domain, proto, 0, local, bind_dev, local_port, server, port, test, &server_res);
     if (s < 0) {
       return -1;
     }
 
     if (timeout_connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen, timeout) < 0 && !eWouldBlock()) {
         saved_errno = errno;
-        closesocket(s);
+        iclosesocket(s, test);
         freeaddrinfo(server_res);
         errno = saved_errno;
         return -1;
@@ -368,7 +368,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
 #endif // HAVE_SO_BINDTODEVICE
         {
             saved_errno = errno;
-            closesocket(s);
+            iclosesocket(s, test);
             freeaddrinfo(res);
             errno = saved_errno;
             return -1;
@@ -379,7 +379,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
 		   (char *) &opt, sizeof(opt)) < 0) {
 	saved_errno = errno;
-	closesocket(s);
+	iclosesocket(s, test);
 	freeaddrinfo(res);
 	errno = saved_errno;
 	return -1;
@@ -401,7 +401,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
 	if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
 		       (char *) &opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
-	    closesocket(s);
+	    iclosesocket(s, test);
 	    freeaddrinfo(res);
 	    errno = saved_errno;
 	    return -1;
@@ -411,7 +411,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
 
     if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
         saved_errno = errno;
-        closesocket(s);
+        iclosesocket(s, test);
 	freeaddrinfo(res);
         errno = saved_errno;
         return -1;
@@ -422,13 +422,33 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     if (proto == SOCK_STREAM) {
         if (listen(s, INT_MAX) < 0) {
 	    saved_errno = errno;
-	    closesocket(s);
+	    iclosesocket(s, test);
 	    errno = saved_errno;
             return -1;
         }
     }
 
     return s;
+}
+
+void iclosesocket(int s, struct iperf_test *test) {
+    if (s < 0)
+        return;
+#ifdef __WIN32__
+    closesocket(s);
+#else
+    close(s);
+#endif
+    if (test) {
+        if (s == test->ctrl_sck)
+           test->ctrl_sck = -1;
+        if (s == test->listener)
+            test->listener = -1;
+        if (s == test->prot_listener)
+            test->prot_listener = -1;
+        IFD_CLR(s, &test->read_set, test);
+        IFD_CLR(s, &test->write_set, test);
+    }
 }
 
 int waitRead(int fd, char *buf, size_t count, int prot, struct iperf_test *test, int timeout_ms)

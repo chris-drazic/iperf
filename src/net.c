@@ -142,17 +142,15 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
 		pfd.events = POLLOUT;
 		if ((ret = poll(&pfd, 1, timeout)) == 1)
 #else
-                if (test->debug) {
-                    char msg_buf[256];
-                    msg_buf [0] = '\0';
-                    FormatMessage (FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,   // flags
-                        NULL,                                                               // lpsource
-                        WSAGetLastError(),                                                  // message id
-                        MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),                         // languageid
-                        msg_buf,                                                            // output buffer
-                        sizeof (msg_buf),                                                   // size of msgbuf, bytes
-                        NULL);
-                }
+                // char msg_buf[256];
+                // msg_buf [0] = '\0';
+                // FormatMessage (FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,   // flags
+                //     NULL,                                                               // lpsource
+                //     WSAGetLastError(),                                                  // message id
+                //     MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),                         // languageid
+                //     msg_buf,                                                            // output buffer
+                //     sizeof (msg_buf),                                                   // size of msgbuf, bytes
+                //     NULL);
                 fd_set write_fds;
                 FD_ZERO(&write_fds);            //Zero out the file descriptor set
                 FD_SET(s, &write_fds);     //Set the current socket file descriptor into the set

@@ -116,9 +116,9 @@ Section "install" Installation
 ;  File ${DT_ICON}
 ;  File ${CF_ICON}
   File "libwinpthread-1.dll"
-  File "libssl-10.dll"
-  File "libcrypto-10.dll"
-  File "libgcc_s_sjlj-1.dll"
+  File libssl*.dll
+  File libcrypto*.dll
+  File libgcc*.dll
   File "libgnurx-0.dll"
   File "zlib1.dll"
 

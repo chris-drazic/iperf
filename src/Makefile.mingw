@@ -50,9 +50,9 @@ $(ALL_OBJS): %.o: %.c Makefile.mingw
 package_win32: ${TARG}
 	# Copy libraries into place so we can package them.
 	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libwinpthread-1.dll ./
-	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libssl-10.dll ./
-	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libcrypto-10.dll ./
-	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libgcc_s_sjlj-1.dll ./
+	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libssl*.dll ./
+	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libcrypto*.dll ./
+	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libgcc*.dll ./
 	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/libgnurx-0.dll ./
 	cp /usr/i686-w64-mingw32/sys-root/mingw/bin/zlib1.dll ./
 	cp ../LICENSE ./license.txt

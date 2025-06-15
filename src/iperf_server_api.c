@@ -657,10 +657,10 @@ iperf_run_server(struct iperf_test *test)
         result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
         if (test->debug > 1 || (test->debug && (last_dbg != now.secs))) {
             iperf_err(test, "select result: %d, listener: %d  ISSET-listener: %d  test-state: %d(%s)\n",
-                    result, test->listener, FD_ISSET(test->listener, &read_set), test->state,
+                    result, test->listener, test->listener >= 0 ? FD_ISSET(test->listener, &read_set) : -1, test->state,
                     iperf_get_state_str(test->state));
             iperf_err(test, "prot-listener: %d  ISSET: %d  max-fd: %d",
-                    test->prot_listener, FD_ISSET(test->prot_listener, &read_set), test->max_fd);
+                    test->prot_listener, test->prot_listener >= 0 ? FD_ISSET(test->prot_listener, &read_set) : -1, test->max_fd);
             print_fdset(test->max_fd, &read_set, &write_set, test);
             last_dbg = now.secs;
         }
@@ -726,7 +726,7 @@ iperf_run_server(struct iperf_test *test)
 
 	if (result > 0) {
             // Check listener socket
-            if (FD_ISSET(test->listener, &read_set)) {
+            if (test->listener >= 0 && FD_ISSET(test->listener, &read_set)) {
                 if (test->state != CREATE_STREAMS) {
                     if (iperf_accept(test) < 0) {
                         return -1;
@@ -746,14 +746,14 @@ iperf_run_server(struct iperf_test *test)
                 }
             }
             // Check control socket
-            if (FD_ISSET(test->ctrl_sck, &read_set)) {
+            if (test->ctrl_sck >= 0 && FD_ISSET(test->ctrl_sck, &read_set)) {
                 if (iperf_handle_message_server(test) < 0) {
                     return -1;
 		        }
             }
 
             if (test->state == CREATE_STREAMS) {
-                if (FD_ISSET(test->prot_listener, &read_set)) {
+                if (test->prot_listener >= 0 && FD_ISSET(test->prot_listener, &read_set)) {
 
                     if ((s = test->protocol->accept(test)) < 0) {
                         return -1;

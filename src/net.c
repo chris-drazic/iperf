@@ -142,6 +142,17 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
 		pfd.events = POLLOUT;
 		if ((ret = poll(&pfd, 1, timeout)) == 1)
 #else
+                if (test->debug) {
+                    char msg_buf[256];
+                    msg_buf [0] = '\0';
+                    FormatMessage (FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,   // flags
+                        NULL,                                                               // lpsource
+                        WSAGetLastError(),                                                  // message id
+                        MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),                         // languageid
+                        msg_buf,                                                            // output buffer
+                        sizeof (msg_buf),                                                   // size of msgbuf, bytes
+                        NULL);
+                }
                 fd_set write_fds;
                 FD_ZERO(&write_fds);            //Zero out the file descriptor set
                 FD_SET(s, &write_fds);     //Set the current socket file descriptor into the set
@@ -151,7 +162,7 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
                 tv.tv_sec = timeout / 1000;                  //The second portion of the struct
                 tv.tv_usec = (timeout % 1000) * 1000;        //The microsecond portion of the struct
 
-                int ret = select(s + 1, NULL, &write_fds, NULL, &tv);
+                ret = select(s + 1, NULL, &write_fds, NULL, &tv);
                 if (ret == 1)
 #endif
                 {
@@ -765,7 +776,7 @@ Nwrite(int fd, const char *buf, size_t count, int prot, struct iperf_test *test)
 #ifndef __WIN32__
                 if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
 #else
-                if (WSAGetLastError() == WSAEWOULDBLOCK)
+                if ((WSAGetLastError() == WSAEWOULDBLOCK) || (WSAGetLastError() == WSAENOTCONN))
                     return count - nleft;
 #endif
                 return NET_HARDERROR;

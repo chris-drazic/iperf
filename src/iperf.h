@@ -284,8 +284,9 @@ struct iperf_stream
     struct iperf_stream_result *result;	/* structure pointer to result */
     Timer     *send_timer;
     int       green_light;
-    int       buffer_fd;	/* data to send, file descriptor */
-    char      *buffer;		/* data to send, mmapped */
+    int       buffer_fd;	/* data to send, file descriptor, if -1 then RAM buffer is being used. */
+    char      *buffer;		/* data to send, mmapped or malloc'd*/
+    char      *buffer_ram;	/* data to send, malloc'd, if buffer_df == -1 */
     int       pending_size;     /* pending data to send */
     int       diskfile_fd;	/* file to send, file descriptor */
     int	      diskfile_left;	/* remaining file data on disk */

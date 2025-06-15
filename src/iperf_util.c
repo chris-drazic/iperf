@@ -177,9 +177,12 @@ const char* hexdump(const unsigned char* msg, int len, int show_decode,
     unsigned short tmp = 0;
     int i;
     int sofar = 0;
-    int count = 0;
 
     for (i = 0; i<len; i++) {
+        int count;
+
+        /*printf("i: %d sofar: %d buf: %ld retval: %ld\n",
+          i, sofar, (long)(buf), (long)(retval));*/
         tmp = msg[i];
         tmp &= 0xff; //mask out high bits (left over from signed-ness??)
         count = snprintf(buf, maxlen - sofar, "%02hx ", tmp);
@@ -191,8 +194,9 @@ const char* hexdump(const unsigned char* msg, int len, int show_decode,
 
         if (add_newlines && ((i + 1) % bytes_per_line == 0)) {
             if (show_decode) {
-               int j;
+                int j;
                 count = snprintf(buf, maxlen - sofar, "   ");
+                sofar += count;
                 buf += count;
                 if (sofar >= maxlen)
                     return retval;
@@ -203,15 +207,17 @@ const char* hexdump(const unsigned char* msg, int len, int show_decode,
                     else {
                         count = snprintf(buf, maxlen - sofar, ".");
                     }
+                    buf += count;
+                    sofar += count;
                     if (sofar >= maxlen)
                         return retval;
-                    buf += count;
                 }//for
             }
             count = snprintf(buf, maxlen - sofar, "\n");
+            buf += count;
+            sofar += count;
             if (sofar >= maxlen)
                 return retval;
-            buf += count;
         }//if
     }//for
 
@@ -220,14 +226,18 @@ const char* hexdump(const unsigned char* msg, int len, int show_decode,
         int q = (i) % bytes_per_line;
         int offset = i-q;
         int l, j;
+        int count;
+
         count = snprintf(buf, maxlen - sofar, "   ");
         buf += count;
+        sofar += count;
         if (sofar >= maxlen)
             return retval;
         for (l = 0; l< bytes_per_line-q; l++) {
             //space, where the hex would have gone.
             count = snprintf(buf, maxlen - sofar, "   ");
             buf += count;
+            sofar += count;
             if (sofar >= maxlen)
                 return retval;
         }
@@ -240,9 +250,10 @@ const char* hexdump(const unsigned char* msg, int len, int show_decode,
             else {
                 count = snprintf(buf, maxlen - sofar, ".");
             }
+            buf += count;
+            sofar += count;
             if (sofar >= maxlen)
                 return retval;
-            buf += count;
         }//for
         snprintf(buf, maxlen - sofar, "\n");
     }

@@ -106,6 +106,7 @@ typedef atomic_uint_fast64_t atomic_iperf_size_t;
 #define OPT_USE_PKCS1_PADDING 30
 #define OPT_CNTL_KA 31
 #define OPT_SKIP_RX_COPY 32
+#define OPT_TMP_DIR 33
 
 /* states */
 #define TEST_INIT 0
@@ -173,6 +174,7 @@ int	iperf_get_test_udp_counters_64bit( struct iperf_test* ipt );
 int	iperf_get_test_one_off( struct iperf_test* ipt );
 int iperf_get_test_tos( struct iperf_test* ipt );
 char*	iperf_get_extra_data( struct iperf_test* ipt );
+char*   iperf_get_tmp_dir( struct iperf_test *ipt );
 char*	iperf_get_iperf_version(void);
 int	iperf_get_test_no_delay( struct iperf_test* ipt );
 int	iperf_get_test_connect_timeout( struct iperf_test* ipt );
@@ -201,6 +203,7 @@ void	iperf_set_test_server_port( struct iperf_test* ipt, int server_port );
 void	iperf_set_test_socket_bufsize( struct iperf_test* ipt, int socket_bufsize );
 void	iperf_set_test_num_streams( struct iperf_test* ipt, int num_streams );
 void	iperf_set_test_repeating_payload( struct iperf_test* ipt, int repeating_payload );
+void    iperf_set_tmp_dir( struct iperf_test *ipt, char *tmpdir );
 void	iperf_set_test_timestamps( struct iperf_test* ipt, int timestamps );
 void	iperf_set_test_timestamp_format( struct iperf_test*, const char *tf );
 void	iperf_set_test_role( struct iperf_test* ipt, char role );
@@ -507,6 +510,7 @@ enum {
     IESETCNTLKAINTERVAL = 157, // Unable to set/get socket keepalive TCP retry interval (TCP_KEEPINTVL) option
     IESETCNTLKACOUNT = 158,    // Unable to set/get socket keepalive TCP number of retries (TCP_KEEPCNT) option
     IEPTHREADSIGMASK=159,      // Unable to initialize sub thread signal mask (check perror)
+    IETMPFILE=160,             // Unable to write to tmp file (check perror)
     /* Stream errors */
     IECREATESTREAM = 200,   // Unable to create a new stream (check herror/perror)
     IEINITSTREAM = 201,     // Unable to initialize stream (check herror/perror)

@@ -485,6 +485,10 @@ iperf_strerror(int int_errno)
             snprintf(errstr, len, "unable to write PID file");
             perr = 1;
             break;
+    case IETMPFILE:
+            snprintf(errstr, len, "unable to write to tmp file");
+            perr = 1;
+            break;
 	case IEV6ONLY:
 	    snprintf(errstr, len, "Unable to set/reset IPV6_V6ONLY");
 	    perr = 1;

@@ -2003,7 +2003,8 @@ iperf_check_throttle(struct iperf_stream *sp, struct iperf_time *nowP)
         IFD_SET(sp->socket, &sp->test->write_set, sp->test);
     } else {
         sp->green_light = 0;
-        IFD_CLR(sp->socket, &sp->test->write_set, sp->test);
+        if (sp->socket >= 0)
+            IFD_CLR(sp->socket, &sp->test->write_set, sp->test);
     }
 
 #if defined(HAVE_CLOCK_NANOSLEEP) || defined(HAVE_NANOSLEEP)
@@ -2340,7 +2341,8 @@ void _fd_clr(int fd, fd_set* fdset, struct iperf_test *test, const char* file, i
         iperf_err(test, "FD-CLR, fd: %d  at %s:%d",
                   fd, file, line);
     }
-    FD_CLR(fd, fdset);
+    if (fd >= 0)
+        FD_CLR(fd, fdset);
 }
 
 const char* iperf_get_state_str(int s) {

@@ -710,7 +710,7 @@ iperf_run_client(struct iperf_test * test)
             last_receive_time = now;
         }
 
-	if (result > 0) {
+	if (result > 0 && test->ctrl_sck >= 0) {
 	    if (FD_ISSET(test->ctrl_sck, &read_set)) {
  	        if (iperf_handle_message_client(test) < 0) {
 		    goto cleanup_and_fail;

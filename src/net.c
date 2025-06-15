@@ -155,6 +155,14 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
                 FD_ZERO(&write_fds);            //Zero out the file descriptor set
                 FD_SET(s, &write_fds);     //Set the current socket file descriptor into the set
 
+                if (timeout = -1) {
+                    //To make select work with windows sockets, having a timeout of -1
+                    // (for infinite wait time on linux) does not operate the same on Windows.
+                    // Thus, to fix this, setting timeout to INT_MAX (2147483647 defined in limits.h),
+                    // should suffice for this application.
+                    timeout = INT_MAX;
+                }
+
                 //We are going to use select to wait for the socket to connect
                 struct timeval tv;              //Time value struct declaration
                 tv.tv_sec = timeout / 1000;                  //The second portion of the struct

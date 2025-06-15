@@ -1711,7 +1711,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
 		client_flag = 1;
 		break;
 	    case OPT_CONNECT_TIMEOUT:
-		test->settings->connect_timeout = unit_atoi(optarg);
+		    test->settings->connect_timeout = unit_atoi(optarg);
 		client_flag = 1;
 		break;
 #if defined(HAVE_IPPROTO_MPTCP)

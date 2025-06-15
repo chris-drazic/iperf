@@ -625,7 +625,7 @@ iperf_tcp_connect(struct iperf_test *test)
     /* Set common socket options */
     iperf_common_sockopts(test, s);
 
-    if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
+    if (timeout_connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen, test->settings->connect_timeout) < 0) {
         iperf_err(test, "tcp-connect, connect() failed: %s\n", STRERROR);
         saved_errno = errno;
         iclosesocket(s, test);

@@ -2588,15 +2588,15 @@ get_parameters(struct iperf_test *test)
 #endif /* HAVE_DONT_FRAGMENT */
 #if defined(HAVE_SSL)
 	if ((j_p = iperf_cJSON_GetObjectItemType(j, "authtoken", cJSON_String)) != NULL)
-        test->settings->authtoken = strdup(j_p->valuestring);
+            test->settings->authtoken = strdup(j_p->valuestring);
 #endif //HAVE_SSL
 	if ((j_p = cJSON_GetObjectItem(j, "skip_rx_copy")) != NULL)
 	    test->settings->skip_rx_copy = j_p->valueint;
 	if (test->mode && test->protocol->id == Ptcp && has_tcpinfo_retransmits())
 	    test->sender_has_retransmits = 1;
-	if (test->settings->rate)
-	    cJSON_AddNumberToObject(test->json_start, "target_bitrate", test->settings->rate);
-	cJSON_Delete(j);
+        if (test->settings->rate)
+            cJSON_AddNumberToObject(test->json_start, "target_bitrate", test->settings->rate);
+        cJSON_Delete(j);
     }
     return r;
 }

@@ -59,7 +59,9 @@
 #endif /* __CYGWIN__, _WIN32, _WIN64, __WINDOWS__ */
 
 #if defined(HAVE_SETPROCESSAFFINITYMASK)
+#ifndef WIN64
 #include <Windows.h>
+#endif
 #endif /* HAVE_SETPROCESSAFFINITYMASK */
 
 #include "net.h"
